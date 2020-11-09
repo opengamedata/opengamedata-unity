@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.beauprime.beauutil": "file:../Submodules/BeauUtil/Assets/BeauUtil",
     "com.unity.collab-proxy": "1.2.16",
     "com.unity.ide.rider": "1.1.4",
     "com.unity.ide.vscode": "1.1.4",
