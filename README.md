@@ -6,7 +6,7 @@ To add the submodule to a project, run the following command from the project's 
 
 `$ git submodule add https://github.com/fielddaylab/opengamedata-unity`
 
-Then, add the `FieldDay.Unity` namespace to the assembly definition file for the namespace where logging will be added.
+Then, add a reference to `FieldDay.Unity` in any assembly definition file where logging functions will be used.
 
 ## Logging
 
