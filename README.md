@@ -8,6 +8,8 @@ To add the submodule to a project, run the following command from the project's 
 
 Then, add the `FieldDay.Unity` namespace to the assembly definition file for the namespace where logging will be added.
 
+## Logging
+
 An instance of `SimpleLog` can be created with the following format:
 
 `SimpleLog slog = new SimpleLog(myAppId, myAppVersion, myQueryParams)`
