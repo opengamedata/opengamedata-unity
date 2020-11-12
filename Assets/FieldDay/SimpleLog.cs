@@ -81,8 +81,6 @@ namespace FieldDay
             inData.Data["client_time"] = DateTime.Now.ToString();
             flushIndex++;
             accruedLog.Add(inData);
-
-            DebugData(inData.Data);
             
             Flush();
         }
@@ -124,15 +122,6 @@ namespace FieldDay
 
                 flushing = false;
             };
-        }
-
-        // Temporary helper to print log values to console
-        private void DebugData(Dictionary<string, string> data)
-        {
-            foreach (KeyValuePair<string, string> kvp in data)
-            {
-                Debug.Log("key: " + kvp.Key + " value: " + kvp.Value);
-            }
         }
     }
 
