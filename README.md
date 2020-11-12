@@ -6,7 +6,7 @@ To add the submodule to a project, run the following command from the project's 
 
 `$ git submodule add https://github.com/fielddaylab/opengamedata-unity`
 
-Then, add a reference to `FieldDay.Unity` in any assembly definition file where logging functions will be used.
+Then, add a reference to `FieldDay.Unity` to the assembly definition file for any namespace where logging functions will be used. Note that this submodule includes the [BeauUtil](https://github.com/BeauPrime/BeauUtil) library as a dependency.
 
 ## Logging
 
@@ -19,7 +19,7 @@ An instance of `SimpleLog` can be created with the following format:
 - `myQueryParams`: if specified, finds a given player id
 
 
-In order to log an event, the data must be contained by a `LogEvent` instance. The `LogEvent` constructor takes the following arguments:
+In order to log an event, the data must be contained by a `LogEvent` object. The `LogEvent` constructor takes the following arguments:
 
 - `data`: a `<string, string>` dictionary of data values for the given event
 - `category`: an enum value to represent the given event type
