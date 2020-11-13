@@ -88,7 +88,7 @@ namespace FieldDay
         /// <summary>
         /// Flushes all queued events
         /// </summary>
-        public void Flush(bool debug)
+        public void Flush(bool debug=false)
         {
             if (flushing || accruedLog.Count == 0) return;
             flushing = true;
