@@ -4,8 +4,8 @@ Unity submodule for logging with OpenGameData servers.
 ## Setup
 If there isn't one already, create a `Submodules` directory within the project's root:
 
-``$ mkdir Submodules
-$ cd Submodules``
+`$ mkdir Submodules\n`
+`$ cd Submodules\n`
 
 To add the submodule to a project, run the following command from within the `Submodules` directory:
 
