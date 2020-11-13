@@ -1,8 +1,8 @@
 # opengamedata-unity
-Unity submodule for logging with OpenGameData servers.
+Unity package for logging with OpenGameData servers.
 
 ## Setup
-If there isn't one already, create a `Submodules` directory within the project's root. To add the submodule to a project, run the following command from within the `Submodules` directory:
+If there isn't one already, create a `Submodules` directory within the project's root. To add the package to a project, run the following command from within the `Submodules` directory:
 
 `$ git submodule add https://github.com/fielddaylab/opengamedata-unity.git`
 
@@ -31,3 +31,9 @@ In order to log an event, the data must be contained by a `LogEvent` object. The
 - `event_data_complex`: a single JSON string containing the initial data passed into the `LogEvent` constructor
 
 Once a `LogEvent` object is constructed with the given data, it can then be passed into `SimpleLog` with the `Log` function, and the data will be logged to the database.
+
+## Removing
+
+If the package needs to be removed to reinstall with a newer version, for instance, [this resource](https://gist.github.com/myusuf3/7f645819ded92bda6677) is helpful for ensuring all the necessary files are removed from the project.
+
+Then, the package can safely be added to the project the same way as before.
