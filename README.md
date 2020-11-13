@@ -18,21 +18,21 @@ An instance of `SimpleLog` can be created with the following format:
 
 - `myAppId`: an identifier for this app within the database (ex. "AQUALAB")
 - `myAppVersion`: the current version of the app for all logging events
-- `myQueryParams`: if specified, finds a given player id
+- `myQueryParams`: if specified, finds a given player id\
 
 
 
 In order to log an event, the data must be contained by a `LogEvent` object. The `LogEvent` constructor takes the following arguments:
 
 - `data`: a `<string, string>` dictionary of data values for the given event
-- `category`: an enum value to represent the given event type
+- `category`: an enum value to represent the given event type\
 
 
 
 `LogEvent` will format the data into a dictionary with the following key/value pairs:
 - `event`: the event type, in this case will default to "CUSTOM"
 - `event_custom`: the enum category for the logged event
-- `event_data_complex`: a single JSON string containing the initial data passed into the `LogEvent` constructor
+- `event_data_complex`: a single JSON string containing the initial data passed into the `LogEvent` constructor\
 
 
 
