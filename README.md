@@ -2,17 +2,28 @@
 Unity package for logging with OpenGameData servers.
 
 ## Setup
-If there isn't one already, create a `Submodules` directory within the project's root. To add the package to a project, run the following command from within the `Submodules` directory:
+If there isn't one already, create a `Submodules` directory within the project's root. 
+
+To add the package to a project, run the following command from within the `Submodules` directory:
 
 `$ git submodule add https://github.com/fielddaylab/opengamedata-unity.git`
 
-Then, add a reference to `FieldDay` to the assembly definition file for any namespace where logging functions will be used. 
+Then, add a reference to `FieldDay` in the assembly definition file for any namespace where logging functions will be used. 
 
 Note that this submodule includes the [BeauUtil](https://github.com/BeauPrime/BeauUtil) library as a dependency.
 
+## Contents
+
+This package includes the following classes:
+
+- `SimpleLog`: handles communication with the database using `UnityWebRequest`
+- `SimpleLogUtils`: contains various helper functions for building data strings and handling cookies
+- `LogEvent`: wrapper class for the data objects that get sent through `SimpleLog`
+- `CookieUtils`: a JavaScript plugin for handling cookies if the project is built for WebGL (found in `~/Assets/Plugins`)
+
 ## Logging
 
-An instance of `SimpleLog` can be created with the following format:
+All communication with the database is handled through the `SimpleLog` class. An instance of `SimpleLog` can be created with the following format:
 
 `SimpleLog slog = new SimpleLog(myAppId, myAppVersion, myQueryParams)`
 
