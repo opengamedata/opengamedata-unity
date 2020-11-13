@@ -1,6 +1,6 @@
 # opengamedata-unity
 
-Unity package for logging with OpenGameData servers.
+Unity package for logging with Field Day's OpenGameData servers.
 
 ## Version Log
 
