@@ -8,7 +8,7 @@ using UnityEngine.Networking;
 namespace FieldDay
 {
     /// <summary>
-    /// Simple Logger
+    /// Handles communication with the OpenGameData server.
     /// </summary>
     public class SimpleLog
     {
@@ -26,6 +26,10 @@ namespace FieldDay
         private string persistentSessionId;
         private string reqUrl;
 
+        /// <summary>
+        /// Creates a new SimpleLog object, finds persistent session id if specified, and builds
+        /// the url string as the target for all POST requests.
+        /// </summary>
         public SimpleLog(string inAppId, int inAppVersion, QueryParams queryParams)
         {
             appId = inAppId;
@@ -86,7 +90,7 @@ namespace FieldDay
         }
 
         /// <summary>
-        /// Flushes all queued events
+        /// Flushes all queued events and sends a POST request to the database.
         /// </summary>
         public void Flush(bool debug=false)
         {
@@ -127,6 +131,9 @@ namespace FieldDay
         }
     }
 
+    /// <summary>
+    /// Interface implemented by the LogEvent class.
+    /// </summary>
     public interface ILogEvent
     {
         Dictionary<string, string> Data { get; set; }

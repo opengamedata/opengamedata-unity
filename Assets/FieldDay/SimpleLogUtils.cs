@@ -6,17 +6,27 @@ using BeauUtil;
 
 namespace FieldDay
 {
+    /// <summary>
+    /// Contains various helper functions for use when logging within SimpleLog.
+    /// </summary>
     public class SimpleLogUtils
     {
+        #region JavaScript Functions
+
         [DllImport("__Internal")]
         public static extern string GetCookie(string name);
 
         [DllImport("__Internal")]
         public static extern void SetCookie(string name, string val, int days);
+
+        #endregion // JavaScript Functions
         
         private const int ISOEncodingId = 28591;
         private static StringBuilder stringBuilder = new StringBuilder();
 
+        /// <summary>
+        /// Generates a 17 digit integer for use as a unique session id.
+        /// </summary>
         public static long UUIDint()
         {
             DateTime dt = DateTime.Now;
@@ -47,6 +57,9 @@ namespace FieldDay
             return Int64.Parse(id);
         }
 
+        /// <summary>
+        /// Takes a list of LogEvents and returns a single JSON string containing all logged elements.
+        /// </summary>
         public static string BuildPostDataString(List<ILogEvent> log)
         {
             foreach (ILogEvent logEvent in log)
@@ -62,14 +75,18 @@ namespace FieldDay
             return btoa(stringBuilder.Flush());
         }
 
-        // https://stackoverflow.com/questions/39111586/stringbuilder-appendformat-ienumarble
+        /// <summary>
+        /// Builds a string with a specified array of arguments.
+        /// </summary>
         public static string BuildUrlString(string formatString, params object[] args)
         {
             stringBuilder.AppendFormat(formatString, args);
             return stringBuilder.Flush();
         }
 
-        // https://stackoverflow.com/questions/46093210/c-sharp-version-of-the-javascript-function-btoa
+        /// <summary>
+        /// Uses ISO encoding and converts the given string into a Base64 string.
+        /// </summary>
         public static string btoa(string str)
         {
             return System.Convert.ToBase64String(Encoding.GetEncoding(ISOEncodingId).GetBytes(str));
