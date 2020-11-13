@@ -6,7 +6,7 @@ If there isn't one already, create a `Submodules` directory within the project's
 
 To add the package to a project, run the following command from within the `Submodules` directory:
 
-`$ git submodule add https://github.com/fielddaylab/opengamedata-unity.git`
+`$ git submodule add -b main https://github.com/fielddaylab/opengamedata-unity.git`
 
 Then, add a reference to `FieldDay` in the assembly definition file for any namespace where logging functions will be used. 
 
@@ -46,3 +46,9 @@ Once a `LogEvent` object is constructed with the given data, it can then be pass
 ## Debugging
 
 Optionally, the `SimpleLog.Log()` function can take in a boolean parameter `debug`, which defaults to false. If the parameter is set to true (ex. `Log(data, debug: true)`), each log request will print the HTTP response code to the console, allowing for confirmation that the database is properly receiving the logged data.
+
+## Updating
+
+To update the local package with the most recent changes from this repository, run the following command from within the project directory:
+
+`$ git submodule update --remote`
