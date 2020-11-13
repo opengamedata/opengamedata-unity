@@ -1,6 +1,10 @@
 # opengamedata-unity
 Unity package for logging with OpenGameData servers.
 
+## Version Log
+
+1. Initial Version
+
 ## Setup
 If there isn't one already, create a `Submodules` directory within the project's root. 
 
