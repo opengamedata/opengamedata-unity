@@ -55,7 +55,7 @@ Once a `LogEvent` object is constructed with the given data, it can then be pass
 
 Optionally, the `SimpleLog.Log()` function can take in a boolean parameter `debug`, which defaults to false. 
 
-If the parameter is set to true (ex. `Log(data, debug: true)`), each log request will print the HTTP response code to the console, allowing for confirmation that the database is properly receiving the logged data.
+If the parameter is set to true (ex. `Log(data, true)` ), each log request will print the HTTP response code to the console, allowing for confirmation that the database is properly receiving the logged data.
 
 ## Updating
 
