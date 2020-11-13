@@ -75,20 +75,20 @@ namespace FieldDay
         /// <summary>
         /// Logs a new event.
         /// </summary>
-        public void Log(ILogEvent inData)
+        public void Log(ILogEvent inData, bool debug=false)
         {
             inData.Data["session_n"] = flushIndex.ToString();
             inData.Data["client_time"] = DateTime.Now.ToString();
             flushIndex++;
             accruedLog.Add(inData);
             
-            Flush();
+            Flush(debug);
         }
 
         /// <summary>
         /// Flushes all queued events
         /// </summary>
-        public void Flush()
+        public void Flush(bool debug)
         {
             if (flushing || accruedLog.Count == 0) return;
             flushing = true;
@@ -107,6 +107,8 @@ namespace FieldDay
 
             reqOperation.completed += obj => 
             {
+                if (debug) Debug.Log(req.responseCode);
+
                 int flushed = Int32.Parse(accruedLog[accruedLog.Count - 1].Data["session_n"]);
                 int cutoff = accruedLog.Count - 1;
 
