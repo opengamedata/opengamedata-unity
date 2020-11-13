@@ -1,4 +1,5 @@
 # opengamedata-unity
+
 Unity package for logging with OpenGameData servers.
 
 ## Version Log
@@ -6,6 +7,7 @@ Unity package for logging with OpenGameData servers.
 1. Initial Version
 
 ## Setup
+
 If there isn't one already, create a `Submodules` directory within the project's root. 
 
 To add the package to a project, run the following command from within the `Submodules` directory:
@@ -63,7 +65,7 @@ To update the local package with the most recent changes from this repository, r
 
 `$ git submodule update --remote`
 
-## Uninstall
+## Remove
 
 In the event that the package needs to be removed, [this resource](https://gist.github.com/myusuf3/7f645819ded92bda6677) provides a method for safely untracking the submodule and removing the necessary files.
 
