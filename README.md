@@ -58,3 +58,9 @@ If the parameter is set to true (ex. `Log(data, debug: true)`), each log request
 To update the local package with the most recent changes from this repository, run the following command from within the project directory:
 
 `$ git submodule update --remote`
+
+## Uninstall
+
+In the event that the package needs to be removed, [this resource](https://gist.github.com/myusuf3/7f645819ded92bda6677) provides a method for safely untracking the submodule and removing the necessary files.
+
+Remember to also remove the dependency within the project's `manifest.json` file.
