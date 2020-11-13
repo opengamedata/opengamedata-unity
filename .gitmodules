@@ -1,3 +1,4 @@
 [submodule "BeauUtil"]
-	path = BeauUtil
+	path = Submodules/BeauUtil
 	url = https://github.com/BeauPrime/BeauUtil.git
+	branch = develop
