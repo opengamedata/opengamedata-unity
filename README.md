@@ -41,4 +41,8 @@ In order to log an event, the data must be contained by a `LogEvent` object. The
 - `event_custom`: the enum category for the logged event
 - `event_data_complex`: a single JSON string containing the initial data passed into the `LogEvent` constructor
 
-Once a `LogEvent` object is constructed with the given data, it can then be passed into `SimpleLog` with the `Log` function, and the data will be logged to the database.
+Once a `LogEvent` object is constructed with the given data, it can then be passed into `SimpleLog` with the `Log()` function, and the data will be logged to the database.
+
+## Debugging
+
+Optionally, the `SimpleLog.Log()` function can take in a boolean parameter `debug`, which defaults to false. If the parameter is set to true (ex. `Log(data, debug: true)`), each log request will print the HTTP response code to the console, allowing for confirmation that the database is properly receiving the logged data.
