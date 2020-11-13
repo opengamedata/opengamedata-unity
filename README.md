@@ -8,7 +8,11 @@ To add the package to a project, run the following command from within the `Subm
 
 `$ git submodule add -b main https://github.com/fielddaylab/opengamedata-unity.git`
 
-Then, add a reference to `FieldDay` in the assembly definition file for any namespace where logging functions will be used. 
+Then, add the following line to the project's `manifest.json` dependencies, which should be located in the `Packages` directory:
+
+`"com.fieldday.opengamedata-unity": "file:../Submodules/opengamedata-unity/Assets/FieldDay"`
+
+Once Unity imports the package, add a reference to `FieldDay` in the assembly definition file for any namespace where logging functions will be used. 
 
 Note that this submodule includes the [BeauUtil](https://github.com/BeauPrime/BeauUtil) library as a dependency.
 
