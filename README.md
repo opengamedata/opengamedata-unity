@@ -4,7 +4,7 @@ Unity submodule for logging with OpenGameData servers.
 ## Setup
 If there isn't one already, create a `Submodules` directory within the project's root. To add the submodule to a project, run the following command from within the `Submodules` directory:
 
-`$ git submodule add https://github.com/fielddaylab/opengamedata-unity`
+`$ git submodule add https://github.com/fielddaylab/opengamedata-unity.git`
 
 Then, add a reference to `FieldDay` to the assembly definition file for any namespace where logging functions will be used. 
 
