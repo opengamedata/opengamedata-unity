@@ -18,8 +18,8 @@ This package includes the following classes:
 
 - `SimpleLog`: handles communication with the database using `UnityWebRequest`
 - `SimpleLogUtils`: contains various helper functions for building data strings and imports JavaScript functions
-- `LogEvent`: wrapper class for the data objects that get sent through `SimpleLog`
 - `CookieUtils`: a JavaScript plugin for handling cookies if the project is built for WebGL
+- `LogEvent`: wrapper class for the data objects that get sent through `SimpleLog`
 
 ## Logging
 
