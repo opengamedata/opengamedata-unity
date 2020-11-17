@@ -12,24 +12,32 @@ namespace FieldDay
     /// </summary>
     public class SimpleLog
     {
-        private string playerId;
-        Regex playerIdRegex = new Regex("/^([a-zA-Z][0-9]{3})$/");
+        /// <value>Regex used to find a matching player ID.</value>
+        private Regex playerIdRegex = new Regex("/^([a-zA-Z][0-9]{3})$/");
 
-        private bool flushing = false;
+        /// <value>A list of <c>LogEvent</c> objects before sent to the database.</value>
         private List<ILogEvent> accruedLog = new List<ILogEvent>();
-        private int flushedTo = 0;
-        private int flushIndex = 0;
+
+        private string playerId;
+        private long sessionId;
+        private string persistentSessionId;
 
         private string appId;
         private int appVersion;
-        private long sessionId;
-        private string persistentSessionId;
+
         private string reqUrl;
+
+        private bool flushing = false;
+        private int flushedTo = 0;
+        private int flushIndex = 0;
 
         /// <summary>
         /// Creates a new SimpleLog object, finds persistent session id if specified, and builds
         /// the url string as the target for all POST requests.
         /// </summary>
+        /// <param name="inAppId">An identifier for this app within the database.</param>
+        /// <param name="inAppVersion">The current version of this app for all logging events.</param>
+        /// <param name="queryParams">If specified, finds the current player ID.</param>
         public SimpleLog(string inAppId, int inAppVersion, QueryParams queryParams)
         {
             appId = inAppId;
@@ -92,6 +100,7 @@ namespace FieldDay
         /// <summary>
         /// Flushes all queued events and sends a POST request to the database.
         /// </summary>
+        /// <param name="debug">Optional parameter for printing HTTP response codes to the console (false by default).</param>
         public void Flush(bool debug=false)
         {
             if (flushing || accruedLog.Count == 0) return;

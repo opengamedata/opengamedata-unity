@@ -20,7 +20,7 @@ Then, add the following line to the project's `manifest.json` dependencies, whic
 
 Once Unity imports the package, add a reference to `FieldDay` in the assembly definition file for any namespace where logging functions will be used. 
 
-Note that this submodule includes the [BeauUtil](https://github.com/BeauPrime/BeauUtil) library as a dependency.
+Note that this package also includes the [BeauUtil](https://github.com/BeauPrime/BeauUtil) library as a dependency.
 
 ## Contents
 
@@ -39,7 +39,7 @@ All communication with the database is handled through the `SimpleLog` class. An
 
 - `myAppId`: an identifier for this app within the database (ex. "AQUALAB")
 - `myAppVersion`: the current version of the app for all logging events
-- `myQueryParams`: if specified, finds a given player id
+- `myQueryParams`: if specified, finds a given player id (see [`BeauUtil.QueryParams`](https://github.com/BeauPrime/BeauUtil/blob/master/Assets/BeauUtil/QueryParams.cs) for implementation)
 
 In order to log an event, the data must be contained by a `LogEvent` object. The `LogEvent` constructor takes the following arguments:
 
@@ -65,8 +65,8 @@ To update the local package with the most recent changes from this repository, r
 
 `$ git submodule update --remote`
 
-## Remove
+## Removal
 
-In the event that the package needs to be removed, [this resource](https://gist.github.com/myusuf3/7f645819ded92bda6677) provides a method for safely untracking the submodule and removing the necessary files.
+If the package needs to be removed, [this resource](https://gist.github.com/myusuf3/7f645819ded92bda6677) provides a method for safely untracking the submodule and removing the necessary files.
 
 Remember to also remove the dependency within the project's `manifest.json` file.
