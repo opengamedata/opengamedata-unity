@@ -87,6 +87,8 @@ namespace FieldDay
         /// <summary>
         /// Logs a new event.
         /// </summary>
+        /// <param name="inData">The <c>LogEvent</c> object to send to the database.</param>
+        /// <param name="debug">Optional parameter for printing HTTP response codes to the console (false by default).</param>
         public void Log(ILogEvent inData, bool debug=false)
         {
             inData.Data["session_n"] = flushIndex.ToString();
