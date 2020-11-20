@@ -12,7 +12,7 @@ If there isn't one already, create a `Submodules` directory within the project's
 
 To add the package to a project, run the following command from within the `Submodules` directory:
 
-`$ git submodule add -b main https://github.com/fielddaylab/opengamedata-unity.git`
+`$ git submodule add -b main https://github.com/opengamedata/opengamedata-unity.git`
 
 Then, add the following line to the project's `manifest.json` dependencies, which should be located in the `Packages` directory:
 
