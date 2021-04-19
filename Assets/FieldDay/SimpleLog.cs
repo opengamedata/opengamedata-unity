@@ -56,10 +56,10 @@ namespace FieldDay
 
             sessionId = SimpleLogUtils.UUIDint();
 
-            #if UNITY_EDITOR
+            //#if UNITY_EDITOR
             
             persistentSessionId = "";
-
+            /*
             #else
 
             persistentSessionId = SimpleLogUtils.GetCookie("persistent_session_id");
@@ -71,7 +71,7 @@ namespace FieldDay
             }
 
             #endif // UNITY_EDITOR
-
+            */
             string playerIdStr = "";
 
             if (playerId != null)
