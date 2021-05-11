@@ -2,3 +2,11 @@
 	path = Submodules/BeauUtil
 	url = https://github.com/BeauPrime/BeauUtil.git
 	branch = develop
+[submodule "beaupools"]
+	path = beaupools
+	url = https://github.com/beauprime/beaupools.git
+	branch = master
+[submodule "Submodules/BeauPools"]
+	path = Submodules/BeauPools
+	url = https://github.com/BeauPrime/BeauPools.git
+	branch = develop

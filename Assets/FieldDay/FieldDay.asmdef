@@ -1,6 +1,7 @@
 {
     "name": "FieldDay",
     "references": [
+        "BeauPools",
         "BeauUtil"
     ],
     "includePlatforms": [],
