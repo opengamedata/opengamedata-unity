@@ -20,6 +20,9 @@ namespace FieldDay
 
         private AnswerButton m_SelectedAnswerButton = null;
         private Action<QuestionGroup> m_OnAnswered;
+        
+        public string Question { get { return m_QuestionText.text; } }
+        public string SelectedAnswer { get { return m_SelectedAnswerButton.Answer; } }
 
         private List<string> m_Answers = new List<string>()
         {
@@ -30,22 +33,40 @@ namespace FieldDay
             "Agree"
         };
 
+        private List<string> m_NumAnswers = new List<string>()
+        {
+            "1",
+            "2",
+            "3"
+        };
+
         public void Initialize(Action<QuestionGroup> inAnsweredCallback, string question)
         {
             m_OnAnswered = inAnsweredCallback;
             m_QuestionText.text = question;
 
-            foreach(string answer in m_Answers)
+            if (question.Equals("three"))
             {
-                AnswerButton button = m_ButtonPool.Alloc();
-                button.Initialize(m_AnswerToggle, OnButtonSelected, answer);
+                foreach(string answer in m_NumAnswers)
+                {
+                    AnswerButton button = m_ButtonPool.Alloc();
+                    button.Initialize(m_AnswerToggle, OnButtonSelected, answer);
+                }
+            }
+            else
+            {
+                foreach(string answer in m_Answers)
+                {
+                    AnswerButton button = m_ButtonPool.Alloc();
+                    button.Initialize(m_AnswerToggle, OnButtonSelected, answer);
+                }
             }
         }
 
         private void OnButtonSelected(AnswerButton inAnswerButton)
         {
             m_SelectedAnswerButton = inAnswerButton;
-            Debug.Log(inAnswerButton.Text);
+            m_OnAnswered(this);
         }
     }
 }

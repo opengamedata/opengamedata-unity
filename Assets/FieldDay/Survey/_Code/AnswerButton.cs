@@ -11,7 +11,7 @@ namespace FieldDay
         [SerializeField] private TextMeshProUGUI m_AnswerText = null;
         [SerializeField] private Toggle m_Toggle = null;
 
-        public string Text { get { return m_AnswerText.text; } }
+        public string Answer { get { return m_AnswerText.text; } }
 
         private Action<AnswerButton> m_OnSelected;
 
