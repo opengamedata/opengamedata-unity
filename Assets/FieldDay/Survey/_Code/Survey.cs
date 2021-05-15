@@ -9,7 +9,9 @@ namespace FieldDay
     public class Survey : MonoBehaviour
     {
         [Serializable] private class GroupPool : SerializablePool<QuestionGroup> {  }
-        
+
+        [SerializeField] private SurveyDataManager m_SurveyDataManager = null;
+
         [Header("Pools")]
         [SerializeField] private GroupPool m_GroupPool = null;
 
@@ -18,19 +20,34 @@ namespace FieldDay
 
         private Dictionary<string, string> m_SelectedAnswers = new Dictionary<string, string>();
 
-        private List<string> m_SurveyQuestions = new List<string>()
-        {
-            "one",
-            "two",
-            "three"
-        };
+        private List<string> m_SurveyQuestions = new List<string>();
+        private Dictionary<string, List<string>> m_SurveyAnswers = new Dictionary<string, List<string>>();
+        private List<string> m_DefaultAnswers;
 
         private void Awake()
         {
+            m_SurveyDataManager.Apply();
+            SurveyDataPackage package = m_SurveyDataManager.GetPackage("Sample");
+            m_DefaultAnswers = package.DefaultAnswers;
+
+            foreach(string id in package.Questions.Keys)
+            {
+                m_SurveyQuestions.Add(package.Questions[id].Question);
+                m_SurveyAnswers[package.Questions[id].Question] = package.Questions[id].Answers;
+            }
+
             foreach(string question in m_SurveyQuestions)
             {
                 QuestionGroup group = m_GroupPool.Alloc();
-                group.Initialize(OnAnswerChosen, question);
+
+                if (m_SurveyAnswers[question].Count == 0)
+                {
+                    group.Initialize(OnAnswerChosen, question, m_DefaultAnswers);
+                }
+                else
+                {
+                    group.Initialize(OnAnswerChosen, question, m_SurveyAnswers[question]);
+                }
             }
 
             m_SubmitButton.onClick.AddListener(OnSubmit);

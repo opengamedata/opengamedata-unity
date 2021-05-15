@@ -24,42 +24,15 @@ namespace FieldDay
         public string Question { get { return m_QuestionText.text; } }
         public string SelectedAnswer { get { return m_SelectedAnswerButton.Answer; } }
 
-        private List<string> m_Answers = new List<string>()
-        {
-            "Disagree",
-            "Somewhat Disagree",
-            "Neutral",
-            "Somewhat Agree",
-            "Agree"
-        };
-
-        private List<string> m_NumAnswers = new List<string>()
-        {
-            "1",
-            "2",
-            "3"
-        };
-
-        public void Initialize(Action<QuestionGroup> inAnsweredCallback, string question)
+        public void Initialize(Action<QuestionGroup> inAnsweredCallback, string question, List<string> answers)
         {
             m_OnAnswered = inAnsweredCallback;
             m_QuestionText.text = question;
 
-            if (question.Equals("three"))
+            foreach(string answer in answers)
             {
-                foreach(string answer in m_NumAnswers)
-                {
-                    AnswerButton button = m_ButtonPool.Alloc();
-                    button.Initialize(m_AnswerToggle, OnButtonSelected, answer);
-                }
-            }
-            else
-            {
-                foreach(string answer in m_Answers)
-                {
-                    AnswerButton button = m_ButtonPool.Alloc();
-                    button.Initialize(m_AnswerToggle, OnButtonSelected, answer);
-                }
+                AnswerButton button = m_ButtonPool.Alloc();
+                button.Initialize(m_AnswerToggle, OnButtonSelected, answer);
             }
         }
 

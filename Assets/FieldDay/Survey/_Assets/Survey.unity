@@ -873,6 +873,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 765e30c19e5fc484c83d3735cab599d1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_SurveyDataManager: {fileID: 11400000, guid: 7df1c6f2f48167a4894d14ac2512a963,
+    type: 2}
   m_GroupPool:
     m_Prefab: {fileID: 9020321536542106924, guid: f32ba34874cbd284399e9f9f49dd3cae,
       type: 3}

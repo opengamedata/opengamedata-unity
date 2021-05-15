@@ -1,0 +1,12 @@
+# defaultAnswers Disagree, Somewhat Disagree, Neutral, Somewhat Agree, Agree
+
+:: question.1
+@answers 3rd, 4th, 5th, 6th
+What grade are you in?
+
+:: question.2
+@answers Below Average, Average, Above Average
+What is your reading level?
+
+:: question.3
+The game is fun.
