@@ -15,7 +15,7 @@ namespace FieldDay
         {
             string[] answers = line.Split(',');
 
-            foreach(string answer in answers)
+            foreach (string answer in answers)
             {
                 m_Answers.Add(answer.Trim());
             }

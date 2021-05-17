@@ -10,7 +10,7 @@ namespace FieldDay
     {
         [NonSerialized] private readonly Dictionary<string, SurveyQuestion> m_Questions = new Dictionary<string, SurveyQuestion>();
 
-        private List<string> m_DefaultAnswers = new List<string>();
+        [NonSerialized] private List<string> m_DefaultAnswers = new List<string>();
 
         [BlockMeta("defaultAnswers"), Preserve]
         private void AddAnswers(string line)
@@ -38,7 +38,7 @@ namespace FieldDay
         }
 
         #if UNITY_EDITOR
-        
+
         [ScriptedExtension(1, "survey")]
         private class Importer : ImporterBase<SurveyDataPackage> { }
 

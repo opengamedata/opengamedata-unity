@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using BeauPools;
+using BeauUtil.Blocks;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,45 +8,49 @@ namespace FieldDay
 {
     public class Survey : MonoBehaviour
     {
-        [Serializable] private class GroupPool : SerializablePool<QuestionGroup> {  }
-
-        [SerializeField] private SurveyDataManager m_SurveyDataManager = null;
-
-        [Header("Pools")]
-        [SerializeField] private GroupPool m_GroupPool = null;
+        // temp
+        [Header("Assets")]
+        [SerializeField] private SurveyDataPackage m_SurveyAsset = null;
 
         [Header("UI")]
+        [SerializeField] private GameObject m_QuestionGroupPrefab = null;
+        [SerializeField] private Transform m_QuestionGroupRoot = null;
         [SerializeField] private Button m_SubmitButton = null;
+
+        [NonSerialized] private List<string> m_DefaultAnswers;
+
+        private static SurveyDataPackage.Generator m_Generator = new SurveyDataPackage.Generator();
 
         private Dictionary<string, string> m_SelectedAnswers = new Dictionary<string, string>();
 
-        private List<string> m_SurveyQuestions = new List<string>();
-        private Dictionary<string, List<string>> m_SurveyAnswers = new Dictionary<string, List<string>>();
-        private List<string> m_DefaultAnswers;
+        private ISurveyHandler m_SurveyHandler = null;
 
+        // temp
         private void Awake()
         {
-            m_SurveyDataManager.Apply();
-            SurveyDataPackage package = m_SurveyDataManager.GetPackage("Sample");
-            m_DefaultAnswers = package.DefaultAnswers;
+            Initialize(m_SurveyAsset, new TestHandler());
+        }
 
-            foreach(string id in package.Questions.Keys)
+        private void Initialize(SurveyDataPackage inPackage, ISurveyHandler inSurveyHandler)
+        {
+            inPackage.Parse(BlockParsingRules.Default, m_Generator);
+            m_DefaultAnswers = inPackage.DefaultAnswers;
+            m_SurveyHandler = inSurveyHandler;
+
+            foreach (string id in inPackage.Questions.Keys)
             {
-                m_SurveyQuestions.Add(package.Questions[id].Question);
-                m_SurveyAnswers[package.Questions[id].Question] = package.Questions[id].Answers;
-            }
+                string question = inPackage.Questions[id].Question;
+                List<string> answers = inPackage.Questions[id].Answers;
 
-            foreach(string question in m_SurveyQuestions)
-            {
-                QuestionGroup group = m_GroupPool.Alloc();
+                QuestionGroup group = Instantiate(m_QuestionGroupPrefab, m_QuestionGroupRoot).GetComponent<QuestionGroup>();
 
-                if (m_SurveyAnswers[question].Count == 0)
+                if (answers.Count == 0)
                 {
-                    group.Initialize(OnAnswerChosen, question, m_DefaultAnswers);
+                    group.Initialize(OnAnswerChosen, id, question, m_DefaultAnswers);
                 }
                 else
                 {
-                    group.Initialize(OnAnswerChosen, question, m_SurveyAnswers[question]);
+                    group.Initialize(OnAnswerChosen, id, question, answers);
                 }
             }
 
@@ -55,17 +59,25 @@ namespace FieldDay
 
         private void OnAnswerChosen(QuestionGroup inQuestionGroup)
         {
-            m_SelectedAnswers[inQuestionGroup.Question] = inQuestionGroup.SelectedAnswer;
-
-            foreach(string question in m_SelectedAnswers.Keys)
-            {
-                Debug.Log(question + " " + m_SelectedAnswers[question]);
-            }
+            m_SelectedAnswers[inQuestionGroup.Id] = inQuestionGroup.SelectedAnswer;
         }
 
         private void OnSubmit()
         {
-            Debug.Log("submit");
+            m_SurveyHandler.HandleSurveyResponse(m_SelectedAnswers);
+            // TODO: hide/reset survey
+        }
+    }
+
+    // temp
+    public class TestHandler : ISurveyHandler
+    {
+        public void HandleSurveyResponse(Dictionary<string, string> surveyResponses)
+        {
+            foreach (string id in surveyResponses.Keys)
+            {
+                Debug.Log(id + " " + surveyResponses[id]);
+            }
         }
     }
 }
