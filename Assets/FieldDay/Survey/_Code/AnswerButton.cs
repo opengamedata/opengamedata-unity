@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -11,6 +10,9 @@ namespace FieldDay
         [Header("UI Dependencies")]
         [SerializeField] private TextMeshProUGUI m_AnswerText = null;
         [SerializeField] private Toggle m_Toggle = null;
+
+        [Header("UI Settings")]
+        [SerializeField] private Font m_AnswerFont;
 
         public string Answer { get { return m_AnswerText.text; } }
 

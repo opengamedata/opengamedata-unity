@@ -8,11 +8,14 @@ namespace FieldDay
 {
     public class QuestionGroup : MonoBehaviour
     {
-        [Header("UI")]
+        [Header("UI Dependencies")]
         [SerializeField] private GameObject m_AnswerButtonPrefab = null;
         [SerializeField] private Transform m_AnswerButtonRoot = null;
         [SerializeField] private TextMeshProUGUI m_QuestionText = null;
         [SerializeField] private ToggleGroup m_AnswerToggle = null;
+
+        [Header("UI Settings")]
+        [SerializeField] private Font m_QuestionFont;
 
         private AnswerButton m_SelectedAnswerButton = null;
         private string m_Id = null;
