@@ -9,10 +9,16 @@ namespace FieldDay
 {
     public class Survey : MonoBehaviour
     {
-        [Header("UI")]
+        // temp
+        [SerializeField] private SurveyDataPackage m_SurveyAsset = null;
+
+        [Header("UI Dependencies")]
         [SerializeField] private GameObject m_QuestionGroupPrefab = null;
         [SerializeField] private Transform m_QuestionGroupRoot = null;
         [SerializeField] private Button m_SubmitButton = null;
+
+        [Header("Settings")]
+        [SerializeField] private bool m_DisplaySkipButton = false;
 
         [NonSerialized] private List<string> m_DefaultAnswers;
 
@@ -27,6 +33,12 @@ namespace FieldDay
         private int m_Index = 0;
 
         private bool IsCompleted { get { return m_SelectedAnswers.Count == m_Questions.Count; } }
+
+        private void Awake()
+        {
+            this.gameObject.SetActive(false);
+            Initialize(m_SurveyAsset, new TestHandler());
+        }
 
         private void Initialize(SurveyDataPackage inPackage, ISurveyHandler inSurveyHandler)
         {
@@ -43,6 +55,7 @@ namespace FieldDay
             m_SurveyHandler = inSurveyHandler;
 
             m_SubmitButton.onClick.AddListener(OnSubmit);
+            if (m_DisplaySkipButton) m_SubmitButton.gameObject.SetActive(true);
 
             DisplayNextQuestion();
         }
@@ -74,17 +87,14 @@ namespace FieldDay
                 else
                 {
                     m_SubmitButton.GetComponentInChildren<TextMeshProUGUI>().text = "Submit";
+                    m_SubmitButton.gameObject.SetActive(true);
                 }
             }
         }
 
         private void OnSubmit()
         {
-            if (IsCompleted)
-            {
-                m_SurveyHandler.HandleSurveyResponse(m_SelectedAnswers);
-            }
-
+            m_SurveyHandler.HandleSurveyResponse(m_SelectedAnswers);
             this.gameObject.SetActive(false);
             Reset();
         }
@@ -101,6 +111,17 @@ namespace FieldDay
             m_Index = 0;
             m_SubmitButton.GetComponentInChildren<TextMeshProUGUI>().text = "Skip";
             this.gameObject.SetActive(false);
+        }
+    }
+
+    public class TestHandler : ISurveyHandler
+    {
+        public void HandleSurveyResponse(Dictionary<string, string> surveyResponses)
+        {
+            foreach (string id in surveyResponses.Keys)
+            {
+                Debug.Log(id + " " + surveyResponses[id]);
+            }
         }
     }
 }

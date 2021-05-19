@@ -58,6 +58,7 @@ MonoBehaviour:
     type: 3}
   m_QuestionGroupRoot: {fileID: 318307421445006459}
   m_SubmitButton: {fileID: 7671895499098299419}
+  m_DisplaySkipButton: 0
 --- !u!222 &7239978740051783202
 CanvasRenderer:
   m_ObjectHideFlags: 0
