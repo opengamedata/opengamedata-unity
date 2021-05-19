@@ -9,10 +9,6 @@ namespace FieldDay
 {
     public class Survey : MonoBehaviour
     {
-        // temp
-        [Header("Assets")]
-        [SerializeField] private SurveyDataPackage m_SurveyAsset = null;
-
         [Header("UI")]
         [SerializeField] private GameObject m_QuestionGroupPrefab = null;
         [SerializeField] private Transform m_QuestionGroupRoot = null;
@@ -31,12 +27,6 @@ namespace FieldDay
         private int m_Index = 0;
 
         private bool IsCompleted { get { return m_SelectedAnswers.Count == m_Questions.Count; } }
-
-        // temp
-        private void Awake()
-        {
-            Initialize(m_SurveyAsset, new TestHandler());
-        }
 
         private void Initialize(SurveyDataPackage inPackage, ISurveyHandler inSurveyHandler)
         {
@@ -92,7 +82,6 @@ namespace FieldDay
         {
             if (IsCompleted)
             {
-                // TODO: should incomplete surveys also be sent?
                 m_SurveyHandler.HandleSurveyResponse(m_SelectedAnswers);
             }
 
@@ -112,18 +101,6 @@ namespace FieldDay
             m_Index = 0;
             m_SubmitButton.GetComponentInChildren<TextMeshProUGUI>().text = "Skip";
             this.gameObject.SetActive(false);
-        }
-    }
-
-    // temp
-    public class TestHandler : ISurveyHandler
-    {
-        public void HandleSurveyResponse(Dictionary<string, string> surveyResponses)
-        {
-            foreach (string id in surveyResponses.Keys)
-            {
-                Debug.Log(id + " " + surveyResponses[id]);
-            }
         }
     }
 }
