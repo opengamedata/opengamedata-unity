@@ -52,8 +52,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 765e30c19e5fc484c83d3735cab599d1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_SurveyAsset: {fileID: -4270002856181823206, guid: 28325a77f5e6da140a776ce14a34fcba,
-    type: 3}
+  m_InJSON: {fileID: 4900000, guid: f42bedce2ce1c0143bb7c8f34c8c0909, type: 3}
   m_QuestionGroupPrefab: {fileID: 8269883136506431259, guid: f32ba34874cbd284399e9f9f49dd3cae,
     type: 3}
   m_QuestionGroupRoot: {fileID: 318307421445006459}

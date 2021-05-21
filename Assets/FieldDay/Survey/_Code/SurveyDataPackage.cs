@@ -6,6 +6,7 @@ using UnityEngine.Scripting;
 
 namespace FieldDay
 {
+    /*
     public class SurveyDataPackage : ScriptableDataBlockPackage<SurveyQuestion>
     {
         [NonSerialized] private readonly Dictionary<string, SurveyQuestion> m_Questions = new Dictionary<string, SurveyQuestion>();
@@ -55,4 +56,5 @@ namespace FieldDay
             }
         }
     }
+    */
 }

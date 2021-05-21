@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using BeauData;
 using BeauUtil.Blocks;
 using TMPro;
 using UnityEngine;
@@ -9,8 +11,13 @@ namespace FieldDay
 {
     public class Survey : MonoBehaviour
     {
+        [DllImport("__Internal")]
+        private static extern string FetchSurvey();
+        [DllImport("__Internal")]
+        private static extern string StringReturnValueFunction();
+
         // temp
-        [SerializeField] private SurveyDataPackage m_SurveyAsset = null;
+        [SerializeField] private TextAsset m_InJSON = null;
 
         [Header("UI Dependencies")]
         [SerializeField] private GameObject m_QuestionGroupPrefab = null;
@@ -22,7 +29,7 @@ namespace FieldDay
 
         [NonSerialized] private List<string> m_DefaultAnswers;
 
-        private static SurveyDataPackage.Generator m_Generator = new SurveyDataPackage.Generator();
+        private SurveyData m_SurveyData = null;
 
         private ISurveyHandler m_SurveyHandler = null;
 
@@ -36,23 +43,29 @@ namespace FieldDay
 
         private void Awake()
         {
+            #if !UNITY_EDITOR
+            string surveyString = FetchSurvey();
+            Debug.Log("SURVEY STRING: " + surveyString);
+            /*
+            m_SurveyData = Serializer.Read<SurveyData>(surveyString);
+            */
+            #endif
+
             this.gameObject.SetActive(false);
-            Initialize(m_SurveyAsset, new TestHandler());
+            Initialize(m_InJSON, new TestHandler());
         }
 
-        private void Initialize(SurveyDataPackage inPackage, ISurveyHandler inSurveyHandler)
+        private void Initialize(TextAsset inSurveyData, ISurveyHandler inSurveyHandler)
         {
             this.gameObject.SetActive(true);
-            inPackage.Parse(BlockParsingRules.Default, m_Generator);
-
-            foreach (string id in inPackage.Questions.Keys)
-            {
-                m_Ids.Add(id);
-            }
-
-            m_Questions = inPackage.Questions;
-            m_DefaultAnswers = inPackage.DefaultAnswers;
             m_SurveyHandler = inSurveyHandler;
+            m_SurveyData = Serializer.Read<SurveyData>(inSurveyData);
+
+            foreach (SurveyQuestion sq in m_SurveyData.Questions)
+            {
+                m_Ids.Add(sq.Id);
+                m_Questions[sq.Id] = sq;
+            }
 
             m_SubmitButton.onClick.AddListener(OnSubmit);
             if (m_DisplaySkipButton) m_SubmitButton.gameObject.SetActive(true);
@@ -67,7 +80,7 @@ namespace FieldDay
 
             QuestionGroup group = go.GetComponent<QuestionGroup>();
             string id = m_Ids[m_Index];
-            string question = m_Questions[id].Question;
+            string question = m_Questions[id].Text;
             List<string> answers = m_Questions[id].Answers;
 
             group.Initialize(OnAnswerChosen, id, question, answers.Count == 0 ? m_DefaultAnswers : answers);
