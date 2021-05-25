@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using BeauData;
-using BeauUtil.Blocks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -13,16 +12,15 @@ namespace FieldDay
     {
         [DllImport("__Internal")]
         private static extern string FetchSurvey();
-        [DllImport("__Internal")]
-        private static extern string StringReturnValueFunction();
 
         // temp
-        [SerializeField] private TextAsset m_InJSON = null;
+        [SerializeField] private TextAsset m_DefaultJSON = null;
 
         [Header("UI Dependencies")]
         [SerializeField] private GameObject m_QuestionGroupPrefab = null;
         [SerializeField] private Transform m_QuestionGroupRoot = null;
         [SerializeField] private Button m_SubmitButton = null;
+        [SerializeField] private Button m_StartButton = null;
 
         [Header("Settings")]
         [SerializeField] private bool m_DisplaySkipButton = false;
@@ -39,27 +37,41 @@ namespace FieldDay
         private List<GameObject> m_QuestionGroups = new List<GameObject>();
         private int m_Index = 0;
 
+        private string m_RemoteJSON = null;
+
         private bool IsCompleted { get { return m_SelectedAnswers.Count == m_Questions.Count; } }
 
         private void Awake()
         {
             #if !UNITY_EDITOR
-            string surveyString = FetchSurvey();
-            Debug.Log("SURVEY STRING: " + surveyString);
-            /*
-            m_SurveyData = Serializer.Read<SurveyData>(surveyString);
-            */
+            FetchSurvey();
             #endif
 
-            this.gameObject.SetActive(false);
-            Initialize(m_InJSON, new TestHandler());
+            m_StartButton.onClick.AddListener(Activate);
+            //this.gameObject.SetActive(false);  
+            //Initialize(new TestHandler());
         }
 
-        private void Initialize(TextAsset inSurveyData, ISurveyHandler inSurveyHandler)
+        private void Activate()
         {
-            this.gameObject.SetActive(true);
+            Initialize(new TestHandler());
+        }
+
+        public void LoadSurvey(string json)
+        {
+            m_RemoteJSON = json;
+        }
+
+        private void Initialize(ISurveyHandler inSurveyHandler)
+        {
+            //this.gameObject.SetActive(true);
             m_SurveyHandler = inSurveyHandler;
-            m_SurveyData = Serializer.Read<SurveyData>(inSurveyData);
+
+            #if UNITY_EDITOR
+            m_SurveyData = Serializer.Read<SurveyData>(m_DefaultJSON);
+            #else
+            m_SurveyData = Serializer.Read<SurveyData>(m_RemoteJSON);
+            #endif
 
             foreach (SurveyQuestion sq in m_SurveyData.Questions)
             {
