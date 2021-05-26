@@ -7,12 +7,13 @@ namespace FieldDay
 {
     public class AnswerButton : MonoBehaviour
     {
+        #region Inspector
+
         [Header("UI Dependencies")]
         [SerializeField] private TextMeshProUGUI m_AnswerText = null;
         [SerializeField] private Toggle m_Toggle = null;
 
-        [Header("UI Settings")]
-        [SerializeField] private Font m_AnswerFont;
+        #endregion // Inspector
 
         public string Answer { get { return m_AnswerText.text; } }
 
@@ -28,11 +29,11 @@ namespace FieldDay
             }
         }
 
-        public void Initialize(ToggleGroup inGroup, Action<AnswerButton> inSelectedCallback, string answer)
+        public void Initialize(string answer, ToggleGroup inGroup, Action<AnswerButton> inSelectedCallback)
         {
+            m_AnswerText.text = answer;
             m_Toggle.group = inGroup;
             m_OnSelected = inSelectedCallback;
-            m_AnswerText.text = answer;
         }
 
         private void OnToggle(bool inValue)

@@ -12,8 +12,10 @@ namespace FieldDay
     {
         [DllImport("__Internal")]
         private static extern string FetchSurvey();
+    
+        #region Inspector
 
-        // temp
+        [Header("Survey Dependencies")]
         [SerializeField] private TextAsset m_DefaultJSON = null;
 
         [Header("UI Dependencies")]
@@ -24,21 +26,16 @@ namespace FieldDay
         [Header("Settings")]
         [SerializeField] private bool m_DisplaySkipButton = false;
 
-        [NonSerialized] private List<string> m_DefaultAnswers;
+        #endregion // Inspector
 
-        private SurveyData m_SurveyData = null;
+        [NonSerialized] private List<string> m_DefaultAnswers;
 
         private ISurveyHandler m_SurveyHandler = null;
 
         private Dictionary<string, string> m_SelectedAnswers = new Dictionary<string, string>();
-        private List<string> m_Ids = new List<string>();
-        private Dictionary<string, SurveyQuestion> m_Questions = new Dictionary<string, SurveyQuestion>();
+        private List<SurveyQuestion> m_Questions = new List<SurveyQuestion>();
         private List<GameObject> m_QuestionGroups = new List<GameObject>();
-        private int m_Index = 0;
-
-        private string m_RemoteJSON = null;
-
-        private bool IsCompleted { get { return m_SelectedAnswers.Count == m_Questions.Count; } }
+        private int m_QuestionIndex = 0;
 
         private void Awake()
         {
@@ -51,28 +48,24 @@ namespace FieldDay
 
         public void LoadSurvey(string json)
         {
-            m_RemoteJSON = json;
             Initialize(new TestHandler(), json);
         }
 
         private void Initialize(ISurveyHandler inSurveyHandler, string inSurveyString = null)
         {
             m_SurveyHandler = inSurveyHandler;
+            SurveyData surveyData = null;
 
             if (inSurveyString == null)
             {
-                m_SurveyData = Serializer.Read<SurveyData>(m_DefaultJSON);
+                surveyData = Serializer.Read<SurveyData>(m_DefaultJSON);
             }
             else
             {
-                m_SurveyData = Serializer.Read<SurveyData>(inSurveyString);
+                surveyData = Serializer.Read<SurveyData>(inSurveyString);
             }
 
-            foreach (SurveyQuestion sq in m_SurveyData.Questions)
-            {
-                m_Ids.Add(sq.Id);
-                m_Questions[sq.Id] = sq;
-            }
+            m_Questions = surveyData.Questions;
 
             m_SubmitButton.onClick.AddListener(OnSubmit);
             if (m_DisplaySkipButton) m_SubmitButton.gameObject.SetActive(true);
@@ -86,12 +79,10 @@ namespace FieldDay
             m_QuestionGroups.Add(go);
 
             QuestionGroup group = go.GetComponent<QuestionGroup>();
-            string id = m_Ids[m_Index];
-            string question = m_Questions[id].Text;
-            List<string> answers = m_Questions[id].Answers;
+            SurveyQuestion surveyQuestion = m_Questions[m_QuestionIndex];
 
-            group.Initialize(OnAnswerChosen, id, question, answers.Count == 0 ? m_DefaultAnswers : answers);
-            m_Index++;
+            group.Initialize(surveyQuestion, OnAnswerChosen);
+            m_QuestionIndex++;
         }
 
         private void OnAnswerChosen(QuestionGroup inQuestionGroup)
@@ -100,7 +91,7 @@ namespace FieldDay
             {
                 m_SelectedAnswers[inQuestionGroup.Id] = inQuestionGroup.SelectedAnswer;
 
-                if (!IsCompleted)
+                if (m_SelectedAnswers.Count != m_Questions.Count)
                 {
                     DisplayNextQuestion();
                 }
@@ -115,7 +106,6 @@ namespace FieldDay
         private void OnSubmit()
         {
             m_SurveyHandler.HandleSurveyResponse(m_SelectedAnswers);
-            this.gameObject.SetActive(false);
             Reset();
         }
 
@@ -126,9 +116,8 @@ namespace FieldDay
                 Destroy(group);
             }
 
-            m_Ids.Clear();
             m_SelectedAnswers.Clear();
-            m_Index = 0;
+            m_QuestionIndex = 0;
             m_SubmitButton.GetComponentInChildren<TextMeshProUGUI>().text = "Skip";
             this.gameObject.SetActive(false);
         }
