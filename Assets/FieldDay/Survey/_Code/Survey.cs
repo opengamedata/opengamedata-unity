@@ -20,7 +20,6 @@ namespace FieldDay
         [SerializeField] private GameObject m_QuestionGroupPrefab = null;
         [SerializeField] private Transform m_QuestionGroupRoot = null;
         [SerializeField] private Button m_SubmitButton = null;
-        [SerializeField] private Button m_StartButton = null;
 
         [Header("Settings")]
         [SerializeField] private bool m_DisplaySkipButton = false;
@@ -43,35 +42,31 @@ namespace FieldDay
 
         private void Awake()
         {
-            #if !UNITY_EDITOR
+            #if UNITY_EDITOR
+            Initialize(new TestHandler());
+            #else
             FetchSurvey();
             #endif
-
-            m_StartButton.onClick.AddListener(Activate);
-            //this.gameObject.SetActive(false);  
-            //Initialize(new TestHandler());
-        }
-
-        private void Activate()
-        {
-            Initialize(new TestHandler());
         }
 
         public void LoadSurvey(string json)
         {
             m_RemoteJSON = json;
+            Initialize(new TestHandler(), json);
         }
 
-        private void Initialize(ISurveyHandler inSurveyHandler)
+        private void Initialize(ISurveyHandler inSurveyHandler, string inSurveyString = null)
         {
-            //this.gameObject.SetActive(true);
             m_SurveyHandler = inSurveyHandler;
 
-            #if UNITY_EDITOR
-            m_SurveyData = Serializer.Read<SurveyData>(m_DefaultJSON);
-            #else
-            m_SurveyData = Serializer.Read<SurveyData>(m_RemoteJSON);
-            #endif
+            if (inSurveyString == null)
+            {
+                m_SurveyData = Serializer.Read<SurveyData>(m_DefaultJSON);
+            }
+            else
+            {
+                m_SurveyData = Serializer.Read<SurveyData>(inSurveyString);
+            }
 
             foreach (SurveyQuestion sq in m_SurveyData.Questions)
             {
