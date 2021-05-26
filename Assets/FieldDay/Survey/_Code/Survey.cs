@@ -89,9 +89,7 @@ namespace FieldDay
         {
             if (!m_SelectedAnswers.ContainsKey(inQuestionGroup.Id))
             {
-                m_SelectedAnswers[inQuestionGroup.Id] = inQuestionGroup.SelectedAnswer;
-
-                if (m_SelectedAnswers.Count != m_Questions.Count)
+                if (m_SelectedAnswers.Count < m_Questions.Count - 1)
                 {
                     DisplayNextQuestion();
                 }
@@ -101,6 +99,8 @@ namespace FieldDay
                     m_SubmitButton.gameObject.SetActive(true);
                 }
             }
+
+            m_SelectedAnswers[inQuestionGroup.Id] = inQuestionGroup.SelectedAnswer;
         }
 
         private void OnSubmit()
