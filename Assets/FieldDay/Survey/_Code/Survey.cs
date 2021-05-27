@@ -1,6 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using BeauUtil.Blocks;
+﻿using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using BeauData;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,97 +9,87 @@ namespace FieldDay
 {
     public class Survey : MonoBehaviour
     {
-        [Header("UI")]
+        [DllImport("__Internal")]
+        public static extern string FetchSurvey(string surveyName);
+    
+        #region Inspector
+
+        [Header("Survey Dependencies")]
+        [SerializeField] private TextAsset m_DefaultJSON = null;
+
+        [Header("UI Dependencies")]
         [SerializeField] private GameObject m_QuestionGroupPrefab = null;
         [SerializeField] private Transform m_QuestionGroupRoot = null;
         [SerializeField] private Button m_SubmitButton = null;
 
-        [NonSerialized] private List<string> m_DefaultAnswers;
-
-        private static SurveyDataPackage.Generator m_Generator = new SurveyDataPackage.Generator();
+        #endregion // Inspector
 
         private ISurveyHandler m_SurveyHandler = null;
-
         private Dictionary<string, string> m_SelectedAnswers = new Dictionary<string, string>();
-        private List<string> m_Ids = new List<string>();
-        private Dictionary<string, SurveyQuestion> m_Questions = new Dictionary<string, SurveyQuestion>();
-        private List<GameObject> m_QuestionGroups = new List<GameObject>();
-        private int m_Index = 0;
+        private List<SurveyQuestion> m_Questions = new List<SurveyQuestion>();
+        private int m_QuestionIndex = 0;
 
-        private bool IsCompleted { get { return m_SelectedAnswers.Count == m_Questions.Count; } }
-
-        private void Initialize(SurveyDataPackage inPackage, ISurveyHandler inSurveyHandler)
+        public void Initialize(string inSurveyName, ISurveyHandler inSurveyHandler, bool displaySkipButton = false)
         {
-            this.gameObject.SetActive(true);
-            inPackage.Parse(BlockParsingRules.Default, m_Generator);
-
-            foreach (string id in inPackage.Questions.Keys)
-            {
-                m_Ids.Add(id);
-            }
-
-            m_Questions = inPackage.Questions;
-            m_DefaultAnswers = inPackage.DefaultAnswers;
             m_SurveyHandler = inSurveyHandler;
 
             m_SubmitButton.onClick.AddListener(OnSubmit);
+            if (displaySkipButton) m_SubmitButton.gameObject.SetActive(true);
 
+            #if UNITY_EDITOR
+            ReadSurveyData();
+            #else
+            FetchSurvey(inSurveyName);
+            #endif
+        }
+
+        private void ReadSurveyData(string inSurveyString = null)
+        {
+            SurveyData surveyData = null;
+
+            if (inSurveyString == null)
+            {
+                surveyData = Serializer.Read<SurveyData>(m_DefaultJSON);
+            }
+            else
+            {
+                surveyData = Serializer.Read<SurveyData>(inSurveyString);
+            }
+
+            m_Questions = surveyData.Questions;
             DisplayNextQuestion();
         }
 
         private void DisplayNextQuestion()
         {
-            GameObject go = Instantiate(m_QuestionGroupPrefab, m_QuestionGroupRoot);
-            m_QuestionGroups.Add(go);
+            SurveyQuestion surveyQuestion = m_Questions[m_QuestionIndex];
+            QuestionGroup group = Instantiate(m_QuestionGroupPrefab, m_QuestionGroupRoot).GetComponent<QuestionGroup>();
 
-            QuestionGroup group = go.GetComponent<QuestionGroup>();
-            string id = m_Ids[m_Index];
-            string question = m_Questions[id].Question;
-            List<string> answers = m_Questions[id].Answers;
-
-            group.Initialize(OnAnswerChosen, id, question, answers.Count == 0 ? m_DefaultAnswers : answers);
-            m_Index++;
+            group.Initialize(surveyQuestion, OnAnswerChosen);
+            m_QuestionIndex++;
         }
 
         private void OnAnswerChosen(QuestionGroup inQuestionGroup)
         {
             if (!m_SelectedAnswers.ContainsKey(inQuestionGroup.Id))
             {
-                m_SelectedAnswers[inQuestionGroup.Id] = inQuestionGroup.SelectedAnswer;
-
-                if (!IsCompleted)
+                if (m_SelectedAnswers.Count < m_Questions.Count - 1)
                 {
                     DisplayNextQuestion();
                 }
                 else
                 {
                     m_SubmitButton.GetComponentInChildren<TextMeshProUGUI>().text = "Submit";
+                    m_SubmitButton.gameObject.SetActive(true);
                 }
             }
+
+            m_SelectedAnswers[inQuestionGroup.Id] = inQuestionGroup.SelectedAnswer;
         }
 
         private void OnSubmit()
         {
-            if (IsCompleted)
-            {
-                m_SurveyHandler.HandleSurveyResponse(m_SelectedAnswers);
-            }
-
-            this.gameObject.SetActive(false);
-            Reset();
-        }
-
-        private void Reset()
-        {
-            foreach (GameObject group in m_QuestionGroups)
-            {
-                Destroy(group);
-            }
-
-            m_Ids.Clear();
-            m_SelectedAnswers.Clear();
-            m_Index = 0;
-            m_SubmitButton.GetComponentInChildren<TextMeshProUGUI>().text = "Skip";
+            m_SurveyHandler.HandleSurveyResponse(m_SelectedAnswers);
             this.gameObject.SetActive(false);
         }
     }

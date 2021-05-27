@@ -38,7 +38,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 700, y: 531}
+  m_SizeDelta: {x: 800, y: 600}
   m_Pivot: {x: 0.5, y: 1}
 --- !u!114 &318307420487600037
 MonoBehaviour:
@@ -52,12 +52,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 765e30c19e5fc484c83d3735cab599d1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_SurveyAsset: {fileID: -4270002856181823206, guid: 28325a77f5e6da140a776ce14a34fcba,
-    type: 3}
+  m_DefaultJSON: {fileID: 4900000, guid: f42bedce2ce1c0143bb7c8f34c8c0909, type: 3}
   m_QuestionGroupPrefab: {fileID: 8269883136506431259, guid: f32ba34874cbd284399e9f9f49dd3cae,
     type: 3}
   m_QuestionGroupRoot: {fileID: 318307421445006459}
   m_SubmitButton: {fileID: 7671895499098299419}
+  m_DisplaySkipButton: 0
 --- !u!222 &7239978740051783202
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -198,7 +198,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &7884554742225846888
 RectTransform:
   m_ObjectHideFlags: 0

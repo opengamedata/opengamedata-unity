@@ -1,7 +1,7 @@
 {
     "name": "FieldDay",
     "references": [
-        "BeauPools",
+        "BeauData",
         "BeauUtil",
         "Unity.TextMeshPro",
         "UnityEngine.UI"

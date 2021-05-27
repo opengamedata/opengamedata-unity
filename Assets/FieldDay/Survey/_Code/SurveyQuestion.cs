@@ -1,35 +1,31 @@
 ﻿using System.Collections.Generic;
-using BeauUtil.Blocks;
-using UnityEngine.Scripting;
+using BeauData;
 
 namespace FieldDay
 {
-    public class SurveyQuestion : IDataBlock
+    public class SurveyQuestion : ISerializedObject
     {
-        protected string m_Id = null;
+        private string m_Id;
+        private string m_Text;
+        private List<string> m_Answers;
 
-        private List<string> m_Answers = new List<string>();
-
-        [BlockMeta("answers"), Preserve]
-        private void AddAnswers(string line)
-        {
-            string[] answers = line.Split(',');
-
-            foreach (string answer in answers)
-            {
-                m_Answers.Add(answer.Trim());
-            }
-        }
-        
-        [BlockContent] private string m_Question = null;
-
-        public SurveyQuestion(string inId)
-        {
-            m_Id = inId;
-        }
+        #region Accessors
 
         public string Id { get { return m_Id; } }
+        public string Text { get { return m_Text; } }
         public List<string> Answers { get { return m_Answers; } }
-        public string Question { get { return m_Question; } }
+
+        #endregion // Accessors
+
+        #region ISerializedObject
+
+        public void Serialize(Serializer ioSerializer)
+        {
+            ioSerializer.Serialize("id", ref m_Id);
+            ioSerializer.Serialize("text", ref m_Text);
+            ioSerializer.Array("answers", ref m_Answers);
+        }
+
+        #endregion // ISerializedObject
     }
 }
