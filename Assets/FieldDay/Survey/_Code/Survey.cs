@@ -14,9 +14,6 @@ namespace FieldDay
     
         #region Inspector
 
-        [Header("Survey Dependencies")]
-        [SerializeField] private TextAsset m_DefaultJSON = null;
-
         [Header("UI Dependencies")]
         [SerializeField] private GameObject m_QuestionGroupPrefab = null;
         [SerializeField] private Transform m_QuestionGroupRoot = null;
@@ -24,13 +21,15 @@ namespace FieldDay
 
         #endregion // Inspector
 
+        private TextAsset m_DefaultJSON = null;
         private ISurveyHandler m_SurveyHandler = null;
         private Dictionary<string, string> m_SelectedAnswers = new Dictionary<string, string>();
         private List<SurveyQuestion> m_Questions = new List<SurveyQuestion>();
         private int m_QuestionIndex = 0;
 
-        public void Initialize(string inSurveyName, ISurveyHandler inSurveyHandler, bool displaySkipButton = false)
+        public void Initialize(string inSurveyName, TextAsset inDefaultJSON, ISurveyHandler inSurveyHandler, bool displaySkipButton = false)
         {
+            m_DefaultJSON = inDefaultJSON;
             m_SurveyHandler = inSurveyHandler;
 
             m_SubmitButton.onClick.AddListener(OnSubmit);
