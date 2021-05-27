@@ -36,17 +36,17 @@ namespace FieldDay
             if (displaySkipButton) m_SubmitButton.gameObject.SetActive(true);
 
             #if UNITY_EDITOR
-            ReadSurveyData();
+            ReadSurveyData(string.Empty);
             #else
             FetchSurvey(inSurveyName);
             #endif
         }
 
-        private void ReadSurveyData(string inSurveyString = null)
+        private void ReadSurveyData(string inSurveyString)
         {
             SurveyData surveyData = null;
 
-            if (inSurveyString == null)
+            if (inSurveyString.Equals(string.Empty))
             {
                 surveyData = Serializer.Read<SurveyData>(m_DefaultJSON);
             }
