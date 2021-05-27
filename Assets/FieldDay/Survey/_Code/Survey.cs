@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using BeauData;
 using TMPro;
@@ -11,7 +10,7 @@ namespace FieldDay
     public class Survey : MonoBehaviour
     {
         [DllImport("__Internal")]
-        private static extern string FetchSurvey();
+        public static extern string FetchSurvey(string surveyName);
     
         #region Inspector
 
@@ -23,37 +22,29 @@ namespace FieldDay
         [SerializeField] private Transform m_QuestionGroupRoot = null;
         [SerializeField] private Button m_SubmitButton = null;
 
-        [Header("Settings")]
-        [SerializeField] private bool m_DisplaySkipButton = false;
-
         #endregion // Inspector
 
-        [NonSerialized] private List<string> m_DefaultAnswers;
-
         private ISurveyHandler m_SurveyHandler = null;
-
         private Dictionary<string, string> m_SelectedAnswers = new Dictionary<string, string>();
         private List<SurveyQuestion> m_Questions = new List<SurveyQuestion>();
-        private List<GameObject> m_QuestionGroups = new List<GameObject>();
         private int m_QuestionIndex = 0;
 
-        private void Awake()
+        public void Initialize(string inSurveyName, ISurveyHandler inSurveyHandler, bool displaySkipButton = false)
         {
+            m_SurveyHandler = inSurveyHandler;
+
+            m_SubmitButton.onClick.AddListener(OnSubmit);
+            if (displaySkipButton) m_SubmitButton.gameObject.SetActive(true);
+
             #if UNITY_EDITOR
-            Initialize(new TestHandler());
+            ReadSurveyData();
             #else
-            FetchSurvey();
+            FetchSurvey(inSurveyName);
             #endif
         }
 
-        public void LoadSurvey(string json)
+        private void ReadSurveyData(string inSurveyString = null)
         {
-            Initialize(new TestHandler(), json);
-        }
-
-        private void Initialize(ISurveyHandler inSurveyHandler, string inSurveyString = null)
-        {
-            m_SurveyHandler = inSurveyHandler;
             SurveyData surveyData = null;
 
             if (inSurveyString == null)
@@ -66,20 +57,13 @@ namespace FieldDay
             }
 
             m_Questions = surveyData.Questions;
-
-            m_SubmitButton.onClick.AddListener(OnSubmit);
-            if (m_DisplaySkipButton) m_SubmitButton.gameObject.SetActive(true);
-
             DisplayNextQuestion();
         }
 
         private void DisplayNextQuestion()
         {
-            GameObject go = Instantiate(m_QuestionGroupPrefab, m_QuestionGroupRoot);
-            m_QuestionGroups.Add(go);
-
-            QuestionGroup group = go.GetComponent<QuestionGroup>();
             SurveyQuestion surveyQuestion = m_Questions[m_QuestionIndex];
+            QuestionGroup group = Instantiate(m_QuestionGroupPrefab, m_QuestionGroupRoot).GetComponent<QuestionGroup>();
 
             group.Initialize(surveyQuestion, OnAnswerChosen);
             m_QuestionIndex++;
@@ -106,31 +90,7 @@ namespace FieldDay
         private void OnSubmit()
         {
             m_SurveyHandler.HandleSurveyResponse(m_SelectedAnswers);
-            Reset();
-        }
-
-        private void Reset()
-        {
-            foreach (GameObject group in m_QuestionGroups)
-            {
-                Destroy(group);
-            }
-
-            m_SelectedAnswers.Clear();
-            m_QuestionIndex = 0;
-            m_SubmitButton.GetComponentInChildren<TextMeshProUGUI>().text = "Skip";
             this.gameObject.SetActive(false);
-        }
-    }
-
-    public class TestHandler : ISurveyHandler
-    {
-        public void HandleSurveyResponse(Dictionary<string, string> surveyResponses)
-        {
-            foreach (string id in surveyResponses.Keys)
-            {
-                Debug.Log(id + " " + surveyResponses[id]);
-            }
         }
     }
 }
