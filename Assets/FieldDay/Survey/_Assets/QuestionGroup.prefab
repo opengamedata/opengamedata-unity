@@ -311,9 +311,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 52a6d34b7c0bf5442b2ccf26618b278f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_QuestionText: {fileID: 1940860550937734724}
   m_AnswerButtonPrefab: {fileID: 7746431633160977437, guid: 874b8bf49e2494242a1da01e1d761edb,
     type: 3}
   m_AnswerButtonRoot: {fileID: 1183678107599042980}
-  m_QuestionText: {fileID: 1940860550937734724}
   m_AnswerToggle: {fileID: 5978909621468716015}
-  m_QuestionFont: {fileID: 0}
+  m_ShortAnswerPrefab: {fileID: 1572377607947175082, guid: fea200fa2527b3e489f457c7826d793a,
+    type: 3}

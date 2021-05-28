@@ -10,10 +10,11 @@ namespace FieldDay
         #region Inspector
 
         [Header("UI Dependencies")]
+        [SerializeField] private TextMeshProUGUI m_QuestionText = null;
         [SerializeField] private GameObject m_AnswerButtonPrefab = null;
         [SerializeField] private Transform m_AnswerButtonRoot = null;
-        [SerializeField] private TextMeshProUGUI m_QuestionText = null;
         [SerializeField] private ToggleGroup m_AnswerToggle = null;
+        [SerializeField] private ShortAnswerField m_ShortAnswerPrefab = null;
 
         #endregion // Inspector
 
@@ -35,16 +36,30 @@ namespace FieldDay
             m_QuestionText.text = inSurveyQuestion.Text;
             m_OnAnswered = inAnsweredCallback;
             
-            foreach (string answer in inSurveyQuestion.Answers)
+            if (inSurveyQuestion.Type.Equals("single-choice"))
             {
-                AnswerButton button = Instantiate(m_AnswerButtonPrefab, m_AnswerButtonRoot).GetComponent<AnswerButton>();
-                button.Initialize(answer, m_AnswerToggle, OnButtonSelected);
+                foreach (string answer in inSurveyQuestion.Answers)
+                {
+                    AnswerButton button = Instantiate(m_AnswerButtonPrefab, m_AnswerButtonRoot).GetComponent<AnswerButton>();
+                    button.Initialize(answer, m_AnswerToggle, OnButtonSelected);
+                }
+            }
+            else if (inSurveyQuestion.Type.Equals("short-answer"))
+            {
+                ShortAnswerField field = Instantiate(m_ShortAnswerPrefab, m_AnswerButtonRoot).GetComponent<ShortAnswerField>();
+                field.Initialize(OnShortAnswerSubmitted);
             }
         }
 
         private void OnButtonSelected(AnswerButton inAnswerButton)
         {
             m_SelectedAnswer = inAnswerButton.Answer;
+            m_OnAnswered(this);
+        }
+
+        private void OnShortAnswerSubmitted(ShortAnswerField inShortAnswerField)
+        {
+            m_SelectedAnswer = inShortAnswerField.Answer;
             m_OnAnswered(this);
         }
     }
