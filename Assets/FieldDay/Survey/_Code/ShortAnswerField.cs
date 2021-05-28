@@ -29,7 +29,6 @@ namespace FieldDay
 
         private void OnEndEdit(TMP_InputField input)
         {
-            Debug.Log(input.text);
             m_OnSubmitted(this);
         }
     }
