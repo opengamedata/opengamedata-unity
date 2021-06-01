@@ -17,8 +17,6 @@ Then, add the following line to the project's `manifest.json` dependencies:
 
 `"com.fieldday.opengamedata-unity": "file:../Submodules/opengamedata-unity/Assets/FieldDay"`
 
-[BeauUtil](https://github.com/BeauPrime/BeauUtil) is also included as a dependency.
-
 ## Contents
 
 - `SimpleLog`: handles communication with the database using `UnityWebRequest`
@@ -30,11 +28,10 @@ Then, add the following line to the project's `manifest.json` dependencies:
 
 An instance of `SimpleLog` can be created with the following format:
 
-`SimpleLog slog = new SimpleLog(myAppId, myAppVersion, myQueryParams)`
+`SimpleLog slog = new SimpleLog(myAppId, myAppVersion)`
 
 - `myAppId`: an identifier for this app within the database (ex. "AQUALAB")
 - `myAppVersion`: the current version of the app for all logging events
-- `myQueryParams`: if specified, finds a given player id (see [`BeauUtil.QueryParams`](https://github.com/BeauPrime/BeauUtil/blob/master/Assets/BeauUtil/QueryParams.cs) for implementation)
 
 In order to log an event, the data must be contained by a `LogEvent` object, which takes the following arguments:
 

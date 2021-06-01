@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
-using BeauUtil;
 
 namespace FieldDay
 {
@@ -98,7 +97,7 @@ namespace FieldDay
             // Remove trailing comma
             stringBuilder.Length--;
 
-            return btoa(stringBuilder.Flush());
+            return btoa(FlushStringBuilder());
         }
 
         /// <summary>
@@ -112,7 +111,7 @@ namespace FieldDay
         public static string BuildUrlString(string formatString, params object[] args)
         {
             stringBuilder.AppendFormat(formatString, args);
-            return stringBuilder.Flush();
+            return FlushStringBuilder();
         }
 
         /// <summary>
@@ -125,6 +124,14 @@ namespace FieldDay
         public static string btoa(string str)
         {
             return System.Convert.ToBase64String(Encoding.GetEncoding(ISOEncodingId).GetBytes(str));
+        }
+
+        private static string FlushStringBuilder()
+        {
+            string outString = stringBuilder.ToString();
+            stringBuilder.Length = 0;
+
+            return outString;
         }
     }
 }
