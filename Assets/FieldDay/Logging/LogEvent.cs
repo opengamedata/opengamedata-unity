@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using BeauUtil;
 
 namespace FieldDay 
 {
@@ -26,7 +25,7 @@ namespace FieldDay
             Data = new Dictionary<string, string>() 
             {
                 { "event", "CUSTOM" },
-                { "event_custom", Convert.ToInt32(category).ToStringLookup() },
+                { "event_custom", category.ToString() },
                 { "event_data_complex", BuildEventDataString(data) }
             };
         }
@@ -48,7 +47,10 @@ namespace FieldDay
             // Remove trailing comma
             stringBuilder.Length--;
 
-            return stringBuilder.Flush();
+            string eventDataString = stringBuilder.ToString();
+            stringBuilder.Length = 0;
+
+            return eventDataString;
         }
     }
 }

@@ -97,7 +97,10 @@ namespace FieldDay
             // Remove trailing comma
             stringBuilder.Length--;
 
-            return btoa(FlushStringBuilder());
+            string postDataString = stringBuilder.ToString();
+            stringBuilder.Length = 0;
+
+            return btoa(postDataString);
         }
 
         /// <summary>
@@ -111,7 +114,11 @@ namespace FieldDay
         public static string BuildUrlString(string formatString, params object[] args)
         {
             stringBuilder.AppendFormat(formatString, args);
-            return FlushStringBuilder();
+
+            string urlString = stringBuilder.ToString();
+            stringBuilder.Length = 0;
+
+            return urlString;
         }
 
         /// <summary>
@@ -124,14 +131,6 @@ namespace FieldDay
         public static string btoa(string str)
         {
             return System.Convert.ToBase64String(Encoding.GetEncoding(ISOEncodingId).GetBytes(str));
-        }
-
-        private static string FlushStringBuilder()
-        {
-            string outString = stringBuilder.ToString();
-            stringBuilder.Length = 0;
-
-            return outString;
         }
     }
 }
