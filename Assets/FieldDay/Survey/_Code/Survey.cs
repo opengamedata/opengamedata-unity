@@ -89,7 +89,7 @@ namespace FieldDay
         private void OnSubmit()
         {
             m_SurveyHandler.HandleSurveyResponse(m_SelectedAnswers);
-            this.gameObject.SetActive(false);
+            Destroy(this.gameObject);
         }
     }
 }
