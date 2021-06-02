@@ -19,7 +19,7 @@ namespace FieldDay
 
         private void Awake()
         {
-            m_InputField.onEndEdit.AddListener(delegate{OnEndEdit(m_InputField);});
+            m_InputField.onValueChanged.AddListener(delegate{OnValueChanged(m_InputField);});
         }
 
         public void Initialize(Action<ShortAnswerField> inSubmittedCallback)
@@ -27,7 +27,7 @@ namespace FieldDay
             m_OnSubmitted = inSubmittedCallback;
         }
 
-        private void OnEndEdit(TMP_InputField input)
+        private void OnValueChanged(TMP_InputField input)
         {
             m_OnSubmitted(this);
         }

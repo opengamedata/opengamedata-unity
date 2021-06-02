@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -21,6 +22,7 @@ namespace FieldDay
         private string m_Id = null;
         private string m_SelectedAnswer = null;
         private Action<QuestionGroup> m_OnAnswered;
+        private List<string> m_MultipleChoiceAnswers = new List<string>();
 
         #region Accessors
         
@@ -41,7 +43,15 @@ namespace FieldDay
                 foreach (string answer in inSurveyQuestion.Answers)
                 {
                     AnswerButton button = Instantiate(m_AnswerButtonPrefab, m_AnswerButtonRoot).GetComponent<AnswerButton>();
-                    button.Initialize(answer, m_AnswerToggle, OnButtonSelected);
+                    button.Initialize(answer, OnSingleChoiceSelected, null, m_AnswerToggle);
+                }
+            }
+            else if (inSurveyQuestion.Type.Equals("multiple-choice"))
+            {
+                foreach (string answer in inSurveyQuestion.Answers)
+                {
+                    AnswerButton button = Instantiate(m_AnswerButtonPrefab, m_AnswerButtonRoot).GetComponent<AnswerButton>();
+                    button.Initialize(answer, OnMultipleChoiceSelected, OnMultipleChoiceDeselected, null);
                 }
             }
             else if (inSurveyQuestion.Type.Equals("short-answer"))
@@ -51,9 +61,23 @@ namespace FieldDay
             }
         }
 
-        private void OnButtonSelected(AnswerButton inAnswerButton)
+        private void OnSingleChoiceSelected(AnswerButton inAnswerButton)
         {
             m_SelectedAnswer = inAnswerButton.Answer;
+            m_OnAnswered(this);
+        }
+
+        private void OnMultipleChoiceSelected(AnswerButton inAnswerButton)
+        {
+            m_MultipleChoiceAnswers.Add(inAnswerButton.Answer);
+            m_SelectedAnswer = string.Join(",", m_MultipleChoiceAnswers);
+            m_OnAnswered(this);
+        }
+
+        private void OnMultipleChoiceDeselected(AnswerButton inAnswerButton)
+        {
+            m_MultipleChoiceAnswers.Remove(inAnswerButton.Answer);
+            m_SelectedAnswer = string.Join(",", m_MultipleChoiceAnswers);
             m_OnAnswered(this);
         }
 
