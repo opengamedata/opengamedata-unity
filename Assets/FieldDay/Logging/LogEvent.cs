@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text;
 
 namespace FieldDay 
@@ -19,13 +18,13 @@ namespace FieldDay
         /// Organizes data into a new dictionary in the format that the database expects.
         /// </summary>
         /// <param name="data">A Dictionary of strings containing the logged data values.</param>
-        /// <param name="category">An enum value representing the event category for the given data.</param>
-        public LogEvent(Dictionary<string, string> data, Enum category)
+        /// <param name="category">A string representing the event category for the given data.</param>
+        public LogEvent(Dictionary<string, string> data, string category)
         {
             Data = new Dictionary<string, string>() 
             {
                 { "event", "CUSTOM" },
-                { "event_custom", category.ToString() },
+                { "event_custom", category },
                 { "event_data_complex", BuildEventDataString(data) }
             };
         }
