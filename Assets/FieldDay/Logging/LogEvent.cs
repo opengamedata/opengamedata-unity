@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace FieldDay 
@@ -19,12 +20,12 @@ namespace FieldDay
         /// </summary>
         /// <param name="data">A Dictionary of strings containing the logged data values.</param>
         /// <param name="category">A string representing the event category for the given data.</param>
-        public LogEvent(Dictionary<string, string> data, string category)
+        public LogEvent(Dictionary<string, string> data, Enum category)
         {
             Data = new Dictionary<string, string>() 
             {
                 { "event", "CUSTOM" },
-                { "event_custom", category },
+                { "event_custom", category.ToString() },
                 { "event_data_complex", BuildEventDataString(data) }
             };
         }
