@@ -1,41 +1,60 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
+using UnityEngine.Networking;
 
-public class Authentication : MonoBehaviour
+public static class Authentication
 {
-    private string m_SaveCode = "SaveCode";
-    private string m_PlayerName = "PlayerName";
-    private string m_ClassCode = "ClassCode";
-    
-    #region Accessors
-
-    // set when new game is clicked / continue clicked and player enters their code
-    public string SaveCode { get { return m_SaveCode; } set { m_SaveCode = value; } }
-    // set when player enters for new game
-    public string PlayerName { get { return m_PlayerName; } set { m_PlayerName = value; } }
-    // set when loading from class URL
-    public string ClassCode { get { return m_ClassCode; } set { m_ClassCode = value; } }
-
-    #endregion // Accessors
-
-    private string GenerateSaveCode()
+    // Called once player hits start to display save code and cache somewhere
+    public static void GenerateSaveCode(Action<string> completeCallback, Action<string> errorCallback)
     {
-        // call id gen API, set m_SaveCode, return to display in UI
-        return m_SaveCode;
+        // UnityWebRequest request = UnityWebRequest.Get("url");
+        // AsyncOperation requestHandle = request.SendWebRequest();
+        // requestHandle.completed += (async) => {
+        //     if (request.isNetworkError || request.isHttpError)
+        //     {
+        //         errorCallback(request.error);
+        //     }
+        //     else
+        //     {
+        //         completeCallback(request.downloadHandler.text);
+        //     }
+        // };
+        completeCallback("SaveCode");
     }
 
-    private void SendPlayerData(TextAsset playerData, string saveCode)
+    // Send player data to server, use callbacks to check if post request errored or completed properly
+    public static void SendPlayerData(string playerData, string saveCode, string playerName, string classCode, Action<string> completeCallback, Action<string> errorCallback)
     {
-        // send save data for anon player with save code
+        // UnityWebRequest request = UnityWebRequest.Post("url", "data");
+        // AsyncOperation requestHandle = request.SendWebRequest();
+        // requestHandle.completed += (async) => {
+        //     if (request.isNetworkError || request.isHttpError)
+        //     {
+        //         errorCallback(request.error);
+        //     }
+        //     else
+        //     {
+        //         completeCallback("Save complete");
+        //     }
+        // };
+        completeCallback("Save complete");
     }
 
-    private void SendStudentData(TextAsset playerData, string saveCode, string playerName, string classCode)
+    // Get player data from server, return with complete callback
+    public static void LoadPlayerData(string saveCode, string classCode, Action<string> completeCallback, Action<string> errorCallback)
     {
-        // send save data for a student with name and class code
-    }
-
-    private TextAsset LoadPlayerData(string saveCode)
-    {
-        // get save data for a given code from DB
-        return null;
+        // UnityWebRequest request = UnityWebRequest.Get("url");
+        // AsyncOperation requestHandle = request.SendWebRequest();
+        // requestHandle.completed += (async) => {
+        //     if (request.isNetworkError || request.isHttpError)
+        //     {
+        //         errorCallback(request.error);
+        //     }
+        //     else
+        //     {
+        //         completeCallback(request.downloadHandler.text);
+        //     }
+        // };
+        completeCallback("");
     }
 }
