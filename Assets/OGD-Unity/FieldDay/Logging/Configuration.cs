@@ -67,7 +67,6 @@ namespace FieldDay {
     [Serializable]
     public struct FirebaseConsts {
         public string ApiKey;
-        public string AuthDomain;
         public string ProjectId;
         public string StorageBucket;
         public string MessagingSenderId;

@@ -1,6 +1,9 @@
 {
-    "name": "OGDLog",
+    "name": "FieldDay",
     "references": [
+        "BeauData",
+        "Unity.TextMeshPro",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
@@ -10,7 +11,7 @@ namespace FieldDay {
     /// Handles communication with the OpenGameData server's logging features.
     /// Also handles communication with Firebase.
     /// </summary>
-    public sealed class OGDLog : IDisposable {
+    public sealed partial class OGDLog : IDisposable {
         #region Consts
 
         private const int EventStreamMinimumSize = 4096;
@@ -45,12 +46,23 @@ namespace FieldDay {
         }
 
         /// <summary>
-        /// Mask indicating which log modules are activated.
+        /// Identifiers for logging modules.
         /// </summary>
-        [Flags]
-        public enum ModuleMask {
+        public enum ModuleId {
             OpenGameData = 0x01,
-            Firebase = 0x02
+            Firebase = 0x02,
+
+            COUNT
+        }
+
+        /// <summary>
+        /// Enum indicating the status of a module.
+        /// </summary>
+        private enum ModuleStatus {
+            Uninitialized,
+            Preparing,
+            Ready,
+            Error
         }
 
         // constants
@@ -63,7 +75,7 @@ namespace FieldDay {
         private uint m_EventSequence;
         private StatusFlags m_StatusFlags;
         private SettingsFlags m_Settings;
-        private ModuleMask m_ModuleMask = ModuleMask.OpenGameData;
+        private ModuleStatus[] m_ModuleStatus = new ModuleStatus[(int) ModuleId.COUNT];
 
         // data argument builder - this holds the event stream as a stringified json array, without the square brackets
         private readonly StringBuilder m_EventStream = new StringBuilder(EventStreamMinimumSize);
@@ -76,6 +88,9 @@ namespace FieldDay {
         private char[] m_EventStreamEncodingChars = new char[EventStreamBufferInitialSize];
         private byte[] m_EventStreamEncodingBytes = new byte[EventStreamBufferInitialSize];
         private byte[] m_EventStreamEncodingEscaped = new byte[EventStreamBufferInitialSize];
+
+        // static
+        static private OGDLog s_Instance;
 
         /// <summary>
         /// Creates a new OpenGameData logger.
@@ -92,6 +107,8 @@ namespace FieldDay {
             #else
             m_Settings = SettingsFlags.Default;
             #endif // UNITY_EDITOR
+
+            SetModuleStatus(ModuleId.OpenGameData, ModuleStatus.Preparing);
         }
 
         /// <summary>
@@ -131,6 +148,10 @@ namespace FieldDay {
                     m_EventCustomParamsBuffer = default(FixedCharBuffer);
                 }
             }
+
+            if (s_Instance == this) {
+                s_Instance = null;
+            }
         }
 
         #region Configuration
@@ -139,10 +160,16 @@ namespace FieldDay {
         /// Set up the application constants.
         /// </summary>
         public void Initialize(OGDLogConsts constants) {
+            if (s_Instance != null && s_Instance != this) {
+                throw new InvalidOperationException("Cannot have multiple instances of OGDLog");
+            }
+            
+            s_Instance = this;
             m_OGDConsts = constants;
             m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts);
 
             m_StatusFlags |= StatusFlags.Initialized;
+            SetModuleStatus(ModuleId.OpenGameData, ModuleStatus.Ready);
         }
 
         /// <summary>
@@ -154,6 +181,10 @@ namespace FieldDay {
                 m_SessionConsts.UserId = userId;
                 m_SessionConsts.UserData = userData;
                 m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts);
+
+                if (ModuleReady(ModuleId.Firebase)) {
+                    Firebase_SetSessionConsts(m_SessionConsts);
+                }
             }
         }
 
@@ -163,6 +194,44 @@ namespace FieldDay {
         /// </summary>
         public void SetSettings(SettingsFlags settings) {
             m_Settings = settings;
+        }
+
+        /// <summary>
+        /// Indicates that this should also log to firebase.
+        /// </summary>
+        public void UseFirebase(FirebaseConsts constants) {
+            Firebase_Prepare(constants, m_SessionConsts);
+        }
+
+        /// <summary>
+        /// Indicates that this should also log to firebase.
+        /// </summary>
+        public void UseFirebase(string constantsJSON) {
+            UseFirebase(JsonUtility.FromJson<FirebaseConsts>(constantsJSON));
+        }
+
+        /// <summary>
+        /// Returns if this logger has the given module.
+        /// </summary>
+        [MethodImpl(256)]
+        private bool ModuleReady(ModuleId module) {
+            return m_ModuleStatus[(int) module] == ModuleStatus.Ready;
+        }
+
+        /// <summary>
+        /// Gets the status of the given module.
+        /// </summary>
+        [MethodImpl(256)]
+        private ModuleStatus GetModuleStatus(ModuleId module) {
+            return m_ModuleStatus[(int) module];
+        }
+
+        /// <summary>
+        /// Sets the status of the given module.
+        /// </summary>
+        [MethodImpl(256)]
+        private void SetModuleStatus(ModuleId module, ModuleStatus status) {
+            m_ModuleStatus[(int) module] = status;
         }
 
         #endregion // Configuration
@@ -190,12 +259,16 @@ namespace FieldDay {
             m_StatusFlags |= StatusFlags.WritingEvent;
 
             // if OpenGameData logging is enabled
-            if ((m_ModuleMask & ModuleMask.OpenGameData) != 0) {
+            if (ModuleReady(ModuleId.OpenGameData)) {
                 m_EventStream.Append('{');
                 WriteEventParam("event_name", eventName);
                 WriteEventParam("event_sequence_index", eventSequenceIndex);
                 WriteEventParam("client_time", nowTime.ToString());
                 WriteEventParam("client_offset", clientOffset.ToString());
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_NewEvent(eventName, eventSequenceIndex);
             }
 
             BeginEventCustomParams();
@@ -209,12 +282,16 @@ namespace FieldDay {
                 throw new InvalidOperationException("No unsubmitted event to add an event parameter to");
             }
 
-            if ((m_ModuleMask & ModuleMask.OpenGameData) != 0) {
+            if (ModuleReady(ModuleId.OpenGameData)) {
                 m_EventCustomParamsBuffer.Write('"');
                 m_EventCustomParamsBuffer.Write(parameterName);
                 m_EventCustomParamsBuffer.Write("\":\"");
                 OGDLogUtils.EscapeJSON(ref m_EventCustomParamsBuffer, parameterValue);
                 m_EventCustomParamsBuffer.Write("\",");
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetEventParam(parameterName, parameterValue);
             }
         }
 
@@ -226,12 +303,16 @@ namespace FieldDay {
                 throw new InvalidOperationException("No unsubmitted event to add an event parameter to");
             }
 
-            if ((m_ModuleMask & ModuleMask.OpenGameData) != 0) {
+            if (ModuleReady(ModuleId.OpenGameData)) {
                 m_EventCustomParamsBuffer.Write('"');
                 m_EventCustomParamsBuffer.Write(parameterName);
                 m_EventCustomParamsBuffer.Write("\":");
                 m_EventCustomParamsBuffer.Write(parameterValue);
                 m_EventCustomParamsBuffer.Write(',');
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetEventParam(parameterName, parameterValue);
             }
         }
 
@@ -243,12 +324,16 @@ namespace FieldDay {
                 throw new InvalidOperationException("No unsubmitted event to add an event parameter to");
             }
 
-            if ((m_ModuleMask & ModuleMask.OpenGameData) != 0) {
+            if (ModuleReady(ModuleId.OpenGameData)) {
                 m_EventCustomParamsBuffer.Write('"');
                 m_EventCustomParamsBuffer.Write(parameterName);
                 m_EventCustomParamsBuffer.Write("\":");
                 m_EventCustomParamsBuffer.Write(parameterValue);
                 m_EventCustomParamsBuffer.Write(',');
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetEventParam(parameterName, parameterValue);
             }
         }
 
@@ -260,12 +345,16 @@ namespace FieldDay {
                 throw new InvalidOperationException("No unsubmitted event to add an event parameter to");
             }
 
-            if ((m_ModuleMask & ModuleMask.OpenGameData) != 0) {
+            if (ModuleReady(ModuleId.OpenGameData)) {
                 m_EventCustomParamsBuffer.Write('"');
                 m_EventCustomParamsBuffer.Write(parameterName);
                 m_EventCustomParamsBuffer.Write("\":");
                 m_EventCustomParamsBuffer.Write(parameterValue);
                 m_EventCustomParamsBuffer.Write(',');
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetEventParam(parameterName, parameterValue ? 1 : 0);
             }
         }
 
@@ -313,12 +402,17 @@ namespace FieldDay {
             EndEventCustomParams();
 
             if ((m_StatusFlags & StatusFlags.WritingEvent) != 0) {
-                if ((m_ModuleMask & ModuleMask.OpenGameData) != 0) {
+                if (ModuleReady(ModuleId.OpenGameData)) {
                     OGDLogUtils.TrimEnd(m_EventStream, ',');
                     m_EventStream.Append("},");
                 }
+                if (ModuleReady(ModuleId.Firebase)) {
+                    Firebase_SubmitEvent();
+                }
                 m_StatusFlags &= ~StatusFlags.WritingEvent;
             }
+
+            Firebase_AttemptActivate();
         }
 
         /// <summary>
@@ -341,7 +435,7 @@ namespace FieldDay {
         /// </summary>
         private void EndEventCustomParams() {
             if ((m_StatusFlags & StatusFlags.WritingEventCustomData) != 0) {
-                if ((m_ModuleMask & ModuleMask.OpenGameData) != 0) {
+                if (ModuleReady(ModuleId.OpenGameData)) {
                     m_EventCustomParamsBuffer.TrimEnd(',');
                     m_EventCustomParamsBuffer.Write('}');
                     m_EventStream.Append("\"event_data\":\"");
@@ -374,7 +468,7 @@ namespace FieldDay {
             m_StatusFlags |= StatusFlags.Flushing;
             m_SubmittedStreamLength = m_EventStream.Length;
 
-            if ((m_ModuleMask & ModuleMask.OpenGameData) != 0) {
+            if (ModuleReady(ModuleId.OpenGameData)) {
                 EnsureBufferSize(m_EventStream.Length + EventStreamBufferPadding); // with some padding to ensure encoding doesn't result in any buffer overflows
 
                 // copy the current event stream into our buffer
@@ -388,6 +482,7 @@ namespace FieldDay {
                     UnityEngine.Debug.LogFormat("[OGDLog] Uploading event stream: {0}", new string(m_EventStreamEncodingChars, 0, eventStreamCharLength));
                 }
 
+                // encode data between buffers
                 int dataByteLength = Encoding.UTF8.GetBytes(m_EventStreamEncodingChars, 0, eventStreamCharLength, m_EventStreamEncodingBytes, 0); // encode chars to bytes (UTF8)
                 if ((m_Settings & SettingsFlags.Base64Encode) != 0) {
                     int base64Chars = Convert.ToBase64CharArray(m_EventStreamEncodingBytes, 0, dataByteLength, m_EventStreamEncodingChars, 0); // encode bytes to chars (base64)
@@ -395,6 +490,7 @@ namespace FieldDay {
                 }
                 dataByteLength = OGDLogUtils.EscapePostData(m_EventStreamEncodingBytes, 0, dataByteLength, m_EventStreamEncodingEscaped, 0); // encode bytes to URI-escaped bytes
 
+                // finally generate the actual post bytes
                 byte[] encodedData = new byte[dataByteLength + DataAdditionalByteCount];
                 OGDLogUtils.CopyArray(DataHeaderRawBytes, 0, DataHeaderRawByteSize, encodedData, 0); // copy header "data="
                 OGDLogUtils.CopyArray(DataFooterRawBytes, 0, DataFooterRawBytes.Length, encodedData, DataHeaderRawByteSize + dataByteLength); // copy footer "
@@ -402,7 +498,7 @@ namespace FieldDay {
 
                 UnityWebRequest request = new UnityWebRequest(m_Endpoint, UnityWebRequest.kHttpVerbPOST);
                 if ((m_Settings & SettingsFlags.Debug) != 0) {
-                    request.downloadHandler = new DownloadHandlerBuffer(); // we only need a response handler if we're in debug mode
+                    request.downloadHandler = new DownloadHandlerBuffer(); // we only need a download handler if we're in debug mode
                 }
                 request.uploadHandler = new UploadHandlerRaw(encodedData);
                 request.uploadHandler.contentType = "application/x-www-form-urlencoded";
