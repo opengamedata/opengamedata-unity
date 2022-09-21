@@ -67,3 +67,14 @@ _Libraries - Shortcut.lnk
 /Assets/us.rsp
 /Assets/csc.rsp.meta
 /Assets/mcs.rsp.meta
+/Assets/Plugins
+/Assets/Editor Default Resources
+/Assets/ExternalDependencyManager
+/Assets/Firebase
+/Assets/Parse
+/Assets/Editor Default Resources.meta
+/Assets/ExternalDependencyManager.meta
+/Assets/Firebase.meta
+/Assets/Parse.meta
+/Assets/Plugins.meta
+/bin

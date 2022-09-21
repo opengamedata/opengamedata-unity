@@ -70,8 +70,8 @@ var OGDLogFirebaseLib = {
             }
 
             // copy user properties
-            setUserId(FirebaseCache.analyticsInstance, FirebaseCache.sessionConsts.user_id || "");
-            setUserProperties(FirebaseCache.analyticsInstance, {
+            FirebaseCache.analyticsInstance.setUserId(FirebaseCache.sessionConsts.user_id || "");
+            FirebaseCache.analyticsInstance.setUserProperties({
                 user_data: FirebaseCache.sessionConsts.user_data || ""
             });
 
@@ -82,7 +82,6 @@ var OGDLogFirebaseLib = {
             if (FirebaseCache.legacyConfig.copyUserIdToParameters != null) {
                 FirebaseCache.defaultParameters[FirebaseCache.copyUserIdToParameters] = FirebaseCache.sessionConsts.user_id;
             }
-            setDefaultEventParameters(FirebaseCache.defaultParameters);
         }
     },
 
@@ -116,11 +115,10 @@ var OGDLogFirebaseLib = {
         var scriptsLoadedCount = 0;
         var finishInitializing = function() {
             FirebaseCache.analyticsState = "loaded";  
-            FirebaseCache.appInstance = initializeApp(appConfig);
-            FirebaseCache.analyticsInstance = initializeAnalytics(FirebaseCache.appInstance, {
-                config: {
-                    cookie_flags: "max-age=7200;secure;samesite=none"
-                }
+            FirebaseCache.appInstance = firebase.initializeApp(appConfig);
+            FirebaseCache.analyticsInstance = FirebaseCache.appInstance.analytics();
+            gtag('config', 'ID', {
+                cookie_flags: "max-age=7200;secure;samesite=none"
             });
             if (!FirebaseCache.analyticsInstance) {
                 onScriptError();
@@ -148,13 +146,13 @@ var OGDLogFirebaseLib = {
             }
         };
 
-        var appLoad = new HTMLScriptElement();
-        appLoad.src = "https://www.gstatic.com/firebasejs/9.10.0/firebase-app.js";
+        var appLoad = document.createElement("script");
+        appLoad.src = "https://www.gstatic.com/firebasejs/8.9.1/firebase-app.js";
         appLoad.onload = onScriptLoaded;
         appLoad.onerror = onScriptError;
 
-        var analyticsLoad = new HTMLScriptElement();
-        analyticsLoad.src = "https://www.gstatic.com/firebasejs/9.10.0/firebase-analytics.js";
+        var analyticsLoad = document.createElement("script");
+        analyticsLoad.src = "https://www.gstatic.com/firebasejs/8.9.1/firebase-analytics.js";
         analyticsLoad.onload = onScriptLoaded;
         analyticsLoad.onerror = onScriptError;
 
@@ -209,7 +207,7 @@ var OGDLogFirebaseLib = {
      * @param {string} optionId
      * @param {string} value 
      */
-    OGDLog_FirebaseConfigureLegacyOption(optionId, value) {
+    OGDLog_FirebaseConfigureLegacyOption: function(optionId, value) {
         FirebaseCache.legacyConfig[Pointer_stringify(optionId)] = value;
         FirebaseCache.SyncSettings();
     },
@@ -224,6 +222,7 @@ var OGDLogFirebaseLib = {
         FirebaseCache.currentEventInstance = {
             event_sequence_index: sequenceIndex
         };
+        Object.assign(FirebaseCache.currentEventInstance, FirebaseCache.defaultParameters);
     },
 
     /**
@@ -267,19 +266,19 @@ var OGDLogFirebaseLib = {
      */
     OGDLog_FirebaseSubmitEvent: function() {
         if (FirebaseCache.currentEventId) {
-            logEvent(FirebaseCache.analyticsInstance, FirebaseCache.currentEventId, FirebaseCache.currentEventInstance);
+            FirebaseCache.analyticsInstance.logEvent(FirebaseCache.currentEventId, FirebaseCache.currentEventInstance);
             FirebaseCache.currentEventId = null;
             FirebaseCache.currentEventInstance = {};
         }
     }
 }
 
-const FirebaseCache = OGDLogFirebaseLib.$FirebaseCache;
-/**
- * @param ptr 
- * @return {string}
- */
-function Pointer_stringify(ptr);
+// const FirebaseCache = OGDLogFirebaseLib.$FirebaseCache;
+// /**
+//  * @param ptr 
+//  * @return {string}
+//  */
+// function Pointer_stringify(ptr);
 
 autoAddDeps(OGDLogFirebaseLib, '$FirebaseCache');
 mergeInto(LibraryManager.library, OGDLogFirebaseLib);

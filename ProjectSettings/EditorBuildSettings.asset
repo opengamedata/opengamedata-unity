@@ -5,7 +5,7 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 0
-    path: 
-    guid: 00000000000000000000000000000000
+  - enabled: 1
+    path: Assets/Example/FirebaseLoggingExample.unity
+    guid: e1e986e053240db4897440a4553d3e68
   m_configObjects: {}

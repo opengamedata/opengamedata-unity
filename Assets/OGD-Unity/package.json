@@ -2,5 +2,8 @@
     "name": "com.fieldday.opengamedata-unity",
     "displayName": "opengamedata-unity",
     "version": "0.1.0",
-    "unity": "2019.3"
+    "unity": "2019.3",
+    "dependencies": {
+        "com.beauprime.beaudata": "0.3.1"
+    }
 }

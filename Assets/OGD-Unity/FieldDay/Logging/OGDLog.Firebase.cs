@@ -120,6 +120,7 @@ namespace FieldDay {
         }
 
         private void Firebase_Prepare(FirebaseConsts firebaseConsts, SessionConsts sessionConsts) {
+            SetModuleStatus(ModuleId.Firebase, ModuleStatus.Preparing);
             #if FIREBASE_JS
             OGDLog_FirebasePrepare(firebaseConsts.ApiKey, firebaseConsts.ProjectId, firebaseConsts.StorageBucket, firebaseConsts.MessagingSenderId, firebaseConsts.AppId, firebaseConsts.MeasurementId, Firebase_PrepareFinish);
             #elif FIREBASE_UNITY
@@ -133,22 +134,37 @@ namespace FieldDay {
             };
             m_CachedFirebaseEventParameters = new List<Firebase.Analytics.Parameter>(8);
             #if UNITY_EDITOR // in editor we can just create it normally
-                m_FirebaseApp = FirebaseApp.Create(options, "editor");
-                Firebase_PrepareFinish(0);
+                try {
+                    m_FirebaseApp = FirebaseApp.Create(options, "editor");
+                    Firebase_PrepareFinish(0);
+                } catch(Exception e) {
+                    UnityEngine.Debug.LogException(e);
+                    Firebase_PrepareFinish(1);
+                }
             #elif UNITY_ANDROID // on android we need to make sure our dependencies are resolved first
                 FirebaseApp.CheckAndFixDependenciesAsync().ContinueWith(task => {
                     var dependencyStatus = task.Result;
                     if (dependencyStatus == Firebase.DependencyStatus.Available) {
-                        m_FirebaseApp = FirebaseApp.Create(options);
-                        Firebase_PrepareFinish(0);
+                        try {
+                            m_FirebaseApp = FirebaseApp.Create(options);
+                            Firebase_PrepareFinish(0);
+                        } catch(Exception e) {
+                            UnityEngine.Debug.LogException(e);
+                            Firebase_PrepareFinish(1);
+                        }
                     } else {
                         UnityEngine.Debug.LogErrorFormat(("[OGDLog.Firebase] Could not resolve Firebase dependencies: {0}", dependencyStatus);
                         Firebase_PrepareFinish(1);
                     }
                 });
             #else // otherwise we can just create it
-                m_FirebaseApp = FirebaseApp.Create(options);
-                Firebase_PrepareFinish(0);
+                try {
+                    m_FirebaseApp = FirebaseApp.Create(options);
+                    Firebase_PrepareFinish(0);
+                } catch(Exception e) {
+                    UnityEngine.Debug.LogException(e);
+                    Firebase_PrepareFinish(1);
+                }
             #endif // UNITY_EDITOR
             
             #endif // FIREBASE_JS

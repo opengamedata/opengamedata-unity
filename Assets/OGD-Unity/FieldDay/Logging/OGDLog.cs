@@ -49,8 +49,8 @@ namespace FieldDay {
         /// Identifiers for logging modules.
         /// </summary>
         public enum ModuleId {
-            OpenGameData = 0x01,
-            Firebase = 0x02,
+            OpenGameData = 0,
+            Firebase = 1,
 
             COUNT
         }
