@@ -198,6 +198,10 @@ namespace FieldDay {
         /// </summary>
         public void SetSettings(SettingsFlags settings) {
             m_Settings = settings;
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_ConfigureSettings(m_Settings);
+            }
         }
 
         /// <summary>

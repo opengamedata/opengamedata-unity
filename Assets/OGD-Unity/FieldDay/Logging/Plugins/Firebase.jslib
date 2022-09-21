@@ -5,54 +5,84 @@ var OGDLogFirebaseLib = {
          * Session constants.
          */
         sessionConsts: {
-            user_id: null,
-            user_data: null
+            /** @type {string} */ user_id: null,
+            /** @type {string} */ user_data: null
         },
 
         /**
          * Application constants.
          */
         appConsts: {
-            app_version: null,
-            app_flavor: null
+            /** @type {string} */ app_version: null,
+            /** @type {string} */ app_flavor: null,
+            /** @type {number} */ log_version: 1
+        },
+
+        /**
+         * Legacy configuration options
+         */
+        legacyConfig: {
+            /** @type {string} */ copyUserIdToParameters: "user_code"
         },
 
         /**
          * App instance.
+         * @type {FirebaseApp}
          */
         appInstance: null,
 
         /**
          * Analytics instance.
+         * @type {FirebaseAnalytics}
          */
         analyticsInstance: null,
 
         /**
          * Current event instance.
+         * @type {object}
          */
         currentEventInstance: { },
 
         /**
          * Current event identifier.
+         * @type {string}
          */
         currentEventId: null,
 
         /**
          * Tracks if analytics is loading.
+         * @type {string}
          */
         analyticsState: null,
+
+        /**
+         * Default logging parameters.
+         * @type {object}
+         */
+        defaultParameters: { },
 
         /**
          * Syncs constants.
          */
         SyncSettings: function() {
-            if (FirebaseCache.analyticsInstance) {
-                setUserId(FirebaseCache.analyticsInstance, Firebase.sessionConsts.user_id || "");
-                setUserProperties(FirebaseCache.analyticsInstance, {
-                    user_data: FirebaseCache.sessionConsts.user_data || ""
-                });
-                setDefaultEventParameters(FirebaseCache.appConsts);
+            if (!FirebaseCache.analyticsInstance) {
+                return;
             }
+
+            // copy user properties
+            setUserId(FirebaseCache.analyticsInstance, FirebaseCache.sessionConsts.user_id || "");
+            setUserProperties(FirebaseCache.analyticsInstance, {
+                user_data: FirebaseCache.sessionConsts.user_data || ""
+            });
+
+            // copy app constants to default parameters
+            Object.assign(FirebaseCache.defaultParameters, FirebaseCache.appConsts);
+            
+            // if we're using legacy logging, copy user id to the parameters too
+            if (FirebaseCache.legacyConfig.copyUserIdToParameters != null) {
+                FirebaseCache.defaultParameters[FirebaseCache.copyUserIdToParameters] = FirebaseCache.sessionConsts.user_id;
+            }
+            setDefaultEventParameters(FirebaseCache.defaultParameters);
         }
     },
 
@@ -69,15 +99,12 @@ var OGDLogFirebaseLib = {
      */
     OGDLog_FirebasePrepare: function(apiKey, projectId, storageBucket, messagingSenderId, appId, measurementId, onFinished) {
         if (FirebaseCache.appInstance || FirebaseCache.analyticsState) {
-            if (FirebaseCache.analyticsState != "loading") {
-
-            }
             return;
         }
 
         FirebaseCache.analyticsState = "loading";
 
-        var config = {
+        var appConfig = {
             apiKey: Pointer_stringify(apiKey),
             projectId: Pointer_stringify(projectId),
             storageBucket: Pointer_stringify(storageBucket),
@@ -89,7 +116,7 @@ var OGDLogFirebaseLib = {
         var scriptsLoadedCount = 0;
         var finishInitializing = function() {
             FirebaseCache.analyticsState = "loaded";  
-            FirebaseCache.appInstance = initializeApp(config);
+            FirebaseCache.appInstance = initializeApp(appConfig);
             FirebaseCache.analyticsInstance = initializeAnalytics(FirebaseCache.appInstance, {
                 config: {
                     cookie_flags: "max-age=7200;secure;samesite=none"
@@ -114,6 +141,7 @@ var OGDLogFirebaseLib = {
         var onScriptError = function() {
             if (FirebaseCache.analyticsState != "error") {
                 FirebaseCache.analyticsState = "error";
+                console.error("[Firebase] Initialization failed");
                 if (onFinished) {
                     dynCall_vi(onFinished, 1);
                 }
@@ -156,10 +184,9 @@ var OGDLogFirebaseLib = {
      * @param {string} userData
      */
     OGDLog_FirebaseSetSessionConsts: function(userId, userData) {
-        FirebaseCache.sessionConsts = {
-            user_id: Pointer_stringify(userId),
-            user_data: Pointer_stringify(userData)
-        };
+        var sessionConsts = FirebaseCache.sessionConsts;
+        sessionConsts.user_id = Pointer_stringify(userId);
+        sessionConsts.user_data = Pointer_stringify(userData);
         FirebaseCache.SyncSettings();
     },
 
@@ -167,12 +194,23 @@ var OGDLogFirebaseLib = {
      * Sets application constants.
      * @param {string} appVersion 
      * @param {string} appFlavor 
+     * @param {number} logVersion
      */
-    OGDLog_FirebaseSetAppConsts: function(appVersion, appFlavor) {
-        FirebaseCache.appConsts = {
-            app_version: Pointer_stringify(appVersion),
-            app_flavor: Pointer_stringify(app_flavor)
-        };
+    OGDLog_FirebaseSetAppConsts: function(appVersion, appFlavor, logVersion) {
+        var appConsts = FirebaseCache.appConsts;
+        appConsts.app_version = Pointer_stringify(appVersion);
+        appConsts.app_flavor = Pointer_stringify(appFlavor);
+        appConsts.log_version = logVersion;
+        FirebaseCache.SyncSettings();
+    },
+
+    /**
+     * Configures a legacy option.
+     * @param {string} optionId
+     * @param {string} value 
+     */
+    OGDLog_FirebaseConfigureLegacyOption(optionId, value) {
+        FirebaseCache.legacyConfig[Pointer_stringify(optionId)] = value;
         FirebaseCache.SyncSettings();
     },
 
@@ -207,6 +245,24 @@ var OGDLogFirebaseLib = {
     },
 
     /**
+     * Adds a default number parameter.
+     * @param {string} paramName 
+     * @param {number} numValue 
+     */
+     OGDLog_FirebaseDefaultNumberParam: function(paramName, numValue) {
+        FirebaseCache.defaultParameters[Pointer_stringify(paramName)] = numValue;
+    },
+
+    /**
+     * Adds a default string parameter.
+     * @param {string} paramName 
+     * @param {string} stringVal 
+     */
+     OGDLog_FirebaseDefaultStringParam: function(paramName, stringVal) {
+        FirebaseCache.defaultParameters[Pointer_stringify(paramName)] = Pointer_stringify(stringVal);
+    },
+
+    /**
      * Submits the current event instance.
      */
     OGDLog_FirebaseSubmitEvent: function() {
@@ -217,6 +273,13 @@ var OGDLogFirebaseLib = {
         }
     }
 }
+
+const FirebaseCache = OGDLogFirebaseLib.$FirebaseCache;
+/**
+ * @param ptr 
+ * @return {string}
+ */
+function Pointer_stringify(ptr);
 
 autoAddDeps(OGDLogFirebaseLib, '$FirebaseCache');
 mergeInto(LibraryManager.library, OGDLogFirebaseLib);

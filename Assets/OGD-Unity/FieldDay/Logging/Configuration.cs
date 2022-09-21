@@ -26,6 +26,11 @@ namespace FieldDay {
         public string AppBranch;
 
         /// <summary>
+        /// Client log version.
+        /// </summary>
+        public int ClientLogVersion;
+
+        /// <summary>
         /// The version of the logging code.
         /// </summary>
         public const string LogVersion = "opengamedata";

@@ -19,6 +19,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.Scripting;
 
 #if FIREBASE_UNITY
 using Firebase;
@@ -48,7 +49,10 @@ namespace FieldDay {
         static private extern void OGDLog_FirebaseSetSessionConsts(string userId, string userData);
 
         [DllImport("__Internal")]
-        static private extern void OGDLog_FirebaseSetAppConsts(string appId, string appFlavor);
+        static private extern void OGDLog_FirebaseSetAppConsts(string appId, string appFlavor, int logVersion);
+
+        [DllImport("__Internal")]
+        static private extern void OGDLog_FirebaseConfigureLegacyOption(string optionId, string value);
 
         [DllImport("__Internal")]
         static private extern bool OGDLog_FirebaseNewEvent(string eventName, uint sequenceIndex);
@@ -58,6 +62,12 @@ namespace FieldDay {
 
         [DllImport("__Internal")]
         static private extern bool OGDLog_FirebaseEventStringParam(string paramName, string stringVal);
+
+        [DllImport("__Internal")]
+        static private extern void OGDLog_FirebaseDefaultNumberParam(string paramName, float numValue);
+
+        [DllImport("__Internal")]
+        static private extern void OGDLog_FirebaseDefaultStringParam(string paramName, string stringVal);
 
         [DllImport("__Internal")]
         static private extern bool OGDLog_FirebaseSubmitEvent();
@@ -87,13 +97,16 @@ namespace FieldDay {
 
             if (s_QueuedFirebaseStatus > ModuleStatus.Preparing) {
                 SetModuleStatus(ModuleId.Firebase, s_QueuedFirebaseStatus);
-                Firebase_SetSessionConsts(m_SessionConsts);
-                Firebase_SetAppConsts(m_OGDConsts);
+                if (s_QueuedFirebaseStatus == ModuleStatus.Ready) {
+                    Firebase_SetSessionConsts(m_SessionConsts);
+                    Firebase_SetAppConsts(m_OGDConsts);
+                    Firebase_ConfigureSettings(m_Settings);
+                }
             }
         }
 
         #if UNITY_WEBGL
-        [MonoPInvokeCallback(typeof(FirebaseInitializeCallback))]
+        [MonoPInvokeCallback(typeof(FirebaseInitializeCallback)), Preserve]
         #endif // UNITY_WEBGL
         static private void Firebase_PrepareFinish(int error) {
             if (error != 0) {
@@ -118,6 +131,7 @@ namespace FieldDay {
                 StorageBucket = firebaseConsts.StorageBucket,
                 AppId = firebaseConsts.AppId
             };
+            m_CachedFirebaseEventParameters = new List<Firebase.Analytics.Parameter>(8);
             #if UNITY_EDITOR // in editor we can just create it normally
                 m_FirebaseApp = FirebaseApp.Create(options, "editor");
                 Firebase_PrepareFinish(0);
@@ -155,8 +169,12 @@ namespace FieldDay {
 
         private void Firebase_SetAppConsts(OGDLogConsts appConsts) {
             #if FIREBASE_JS
-            OGDLog_FirebaseSetAppConsts(appConsts.AppId, appConsts.AppBranch);
+            OGDLog_FirebaseSetAppConsts(appConsts.AppId, appConsts.AppBranch, appConsts.ClientLogVersion);
             #endif // FIREBASE_JS
+        }
+
+        private void Firebase_ConfigureSettings(SettingsFlags flags) {
+
         }
 
         private void Firebase_NewEvent(string eventName, uint eventSequenceIndex) {
@@ -167,6 +185,7 @@ namespace FieldDay {
             m_CachedFirebaseEventParameters.Add(new Parameter("event_sequence_index", eventSequenceIndex));
             m_CachedFirebaseEventParameters.Add(new Parameter("app_version", m_OGDConsts.AppVersion));
             m_CachedFirebaseEventParameters.Add(new Parameter("app_flavor", m_OGDConsts.AppBranch));
+            m_CachedFirebaseEventParameters.Add(new Parameter("user_code", m_SessionConsts.UserId));
             #endif // FIREBASE_JS
         }
 
@@ -199,11 +218,7 @@ namespace FieldDay {
             OGDLog_FirebaseSubmitEvent();
             #elif FIREBASE_UNITY
             if (m_CachedFirebaseEventId != null) {
-                if (m_CachedFirebaseEventParameters.Count > 0) {
-                    FirebaseAnalytics.LogEvent(m_CachedFirebaseEventId, m_CachedFirebaseEventParameters.ToArray());
-                } else {
-                    FirebaseAnalytics.LogEvent(m_CachedFirebaseEventId);
-                }
+                FirebaseAnalytics.LogEvent(m_CachedFirebaseEventId, m_CachedFirebaseEventParameters.ToArray());
                 m_CachedFirebaseEventId = null;
                 m_CachedFirebaseEventParameters.Clear();
             }
