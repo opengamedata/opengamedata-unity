@@ -112,6 +112,7 @@ namespace FieldDay {
             if (error != 0) {
                 s_QueuedFirebaseStatus = ModuleStatus.Error;
                 UnityEngine.Debug.LogWarningFormat("[OGDLog.Firebase] Firebase could not be initialized");
+                s_Instance.SetModuleStatus(ModuleId.Firebase, ModuleStatus.Error);
             } else {
                 s_QueuedFirebaseStatus = ModuleStatus.Ready;
             }
@@ -135,8 +136,8 @@ namespace FieldDay {
             m_CachedFirebaseEventParameters = new List<Firebase.Analytics.Parameter>(8);
             #if UNITY_EDITOR // in editor we can just create it normally
                 try {
-                    m_FirebaseApp = FirebaseApp.Create(options, "editor");
-                    Firebase_PrepareFinish(0);
+                    m_FirebaseApp = FirebaseApp.Create(options);
+                    Firebase_PrepareFinish(m_FirebaseApp != null ? 0 : 1);
                 } catch(Exception e) {
                     UnityEngine.Debug.LogException(e);
                     Firebase_PrepareFinish(1);
@@ -147,7 +148,7 @@ namespace FieldDay {
                     if (dependencyStatus == Firebase.DependencyStatus.Available) {
                         try {
                             m_FirebaseApp = FirebaseApp.Create(options);
-                            Firebase_PrepareFinish(0);
+                            Firebase_PrepareFinish(m_FirebaseApp != null ? 0 : 1);
                         } catch(Exception e) {
                             UnityEngine.Debug.LogException(e);
                             Firebase_PrepareFinish(1);
@@ -160,7 +161,7 @@ namespace FieldDay {
             #else // otherwise we can just create it
                 try {
                     m_FirebaseApp = FirebaseApp.Create(options);
-                    Firebase_PrepareFinish(0);
+                    Firebase_PrepareFinish(m_FirebaseApp != null ? 0 : 1);
                 } catch(Exception e) {
                     UnityEngine.Debug.LogException(e);
                     Firebase_PrepareFinish(1);
