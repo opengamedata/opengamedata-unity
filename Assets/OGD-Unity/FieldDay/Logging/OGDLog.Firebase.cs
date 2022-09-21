@@ -48,6 +48,9 @@ namespace FieldDay {
         static private extern void OGDLog_FirebaseSetSessionConsts(string userId, string userData);
 
         [DllImport("__Internal")]
+        static private extern void OGDLog_FirebaseSetAppConsts(string appId, string appFlavor);
+
+        [DllImport("__Internal")]
         static private extern bool OGDLog_FirebaseNewEvent(string eventName, uint sequenceIndex);
 
         [DllImport("__Internal")]
@@ -84,6 +87,8 @@ namespace FieldDay {
 
             if (s_QueuedFirebaseStatus > ModuleStatus.Preparing) {
                 SetModuleStatus(ModuleId.Firebase, s_QueuedFirebaseStatus);
+                Firebase_SetSessionConsts(m_SessionConsts);
+                Firebase_SetAppConsts(m_OGDConsts);
             }
         }
 
@@ -122,7 +127,6 @@ namespace FieldDay {
                     if (dependencyStatus == Firebase.DependencyStatus.Available) {
                         m_FirebaseApp = FirebaseApp.Create(options);
                         Firebase_PrepareFinish(0);
-                        Firebase_SetSessionConsts(m_SessionConsts);
                     } else {
                         UnityEngine.Debug.LogErrorFormat(("[OGDLog.Firebase] Could not resolve Firebase dependencies: {0}", dependencyStatus);
                         Firebase_PrepareFinish(1);
@@ -149,12 +153,20 @@ namespace FieldDay {
             #endif // FIREBASE_JS
         }
 
+        private void Firebase_SetAppConsts(OGDLogConsts appConsts) {
+            #if FIREBASE_JS
+            OGDLog_FirebaseSetAppConsts(appConsts.AppId, appConsts.AppBranch);
+            #endif // FIREBASE_JS
+        }
+
         private void Firebase_NewEvent(string eventName, uint eventSequenceIndex) {
             #if FIREBASE_JS
             OGDLog_FirebaseNewEvent(eventName, eventSequenceIndex);
             #elif FIREBASE_UNITY
             m_CachedFirebaseEventId = eventName;
             m_CachedFirebaseEventParameters.Add(new Parameter("event_sequence_index", eventSequenceIndex));
+            m_CachedFirebaseEventParameters.Add(new Parameter("app_version", m_OGDConsts.AppVersion));
+            m_CachedFirebaseEventParameters.Add(new Parameter("app_flavor", m_OGDConsts.AppBranch));
             #endif // FIREBASE_JS
         }
 

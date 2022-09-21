@@ -4,7 +4,18 @@ var OGDLogFirebaseLib = {
         /**
          * Session constants.
          */
-        sessionConsts: { },
+        sessionConsts: {
+            user_id: null,
+            user_data: null
+        },
+
+        /**
+         * Application constants.
+         */
+        appConsts: {
+            app_version: null,
+            app_flavor: null
+        },
 
         /**
          * App instance.
@@ -29,7 +40,20 @@ var OGDLogFirebaseLib = {
         /**
          * Tracks if analytics is loading.
          */
-        analyticsState: null
+        analyticsState: null,
+
+        /**
+         * Syncs constants.
+         */
+        SyncSettings: function() {
+            if (FirebaseCache.analyticsInstance) {
+                setUserId(FirebaseCache.analyticsInstance, Firebase.sessionConsts.user_id || "");
+                setUserProperties(FirebaseCache.analyticsInstance, {
+                    user_data: FirebaseCache.sessionConsts.user_data || ""
+                });
+                setDefaultEventParameters(FirebaseCache.appConsts);
+            }
+        }
     },
 
     /**
@@ -74,10 +98,7 @@ var OGDLogFirebaseLib = {
             if (!FirebaseCache.analyticsInstance) {
                 onScriptError();
             } else {
-                setUserId(FirebaseCache.analytics, Firebase.sessionConsts.user_id || "");
-                setUserProperties(FirebaseCache.analytics, {
-                    user_data: Firebase.sessionConsts.user_data || ""
-                });
+                FirebaseCache.SyncSettings();
                 if (onFinished) {
                     dynCall_vi(onFinished, 0);
                 }
@@ -118,7 +139,7 @@ var OGDLogFirebaseLib = {
      * @returns {boolean}
      */
     OGDLog_FirebaseReady: function() {
-        return !!FirebaseCache.analytics;
+        return !!FirebaseCache.analyticsInstance;
     },
 
     /**
@@ -135,16 +156,24 @@ var OGDLogFirebaseLib = {
      * @param {string} userData
      */
     OGDLog_FirebaseSetSessionConsts: function(userId, userData) {
-        Firebase.sessionConsts = {
+        FirebaseCache.sessionConsts = {
             user_id: Pointer_stringify(userId),
             user_data: Pointer_stringify(userData)
         };
-        if (FirebaseCache.analytics) {
-            setUserId(FirebaseCache.analytics, Firebase.sessionConsts.user_id || "");
-            setUserProperties(FirebaseCache.analytics, {
-                user_data: Firebase.sessionConsts.user_data || ""
-            });
-        }
+        FirebaseCache.SyncSettings();
+    },
+
+    /**
+     * Sets application constants.
+     * @param {string} appVersion 
+     * @param {string} appFlavor 
+     */
+    OGDLog_FirebaseSetAppConsts: function(appVersion, appFlavor) {
+        FirebaseCache.appConsts = {
+            app_version: Pointer_stringify(appVersion),
+            app_flavor: Pointer_stringify(app_flavor)
+        };
+        FirebaseCache.SyncSettings();
     },
 
     /**

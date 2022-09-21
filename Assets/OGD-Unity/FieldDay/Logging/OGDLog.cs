@@ -170,6 +170,10 @@ namespace FieldDay {
 
             m_StatusFlags |= StatusFlags.Initialized;
             SetModuleStatus(ModuleId.OpenGameData, ModuleStatus.Ready);
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetAppConsts(constants);
+            }
         }
 
         /// <summary>
@@ -242,7 +246,7 @@ namespace FieldDay {
         /// Begins logging an event with the given name.
         /// Provide arguments with EventParam calls.
         /// </summary>
-        public void NewEvent(string eventName) {
+        public void BeginNewEvent(string eventName) {
             if ((m_StatusFlags & StatusFlags.Initialized) == 0) {
                 throw new InvalidOperationException("OGDLog must be initialized before any events are logged");
             }
@@ -273,6 +277,18 @@ namespace FieldDay {
 
             BeginEventCustomParams();
         }
+
+        /// <summary>
+        /// Begins logging an event with the given name.
+        /// This returns a disposable EventScope object
+        /// that can accept event parameters. It will
+        /// submit the event on dispose. Recommend to use
+        /// with the `using` keyword
+        /// </summary>
+        public EventScope NewEvent(string eventName) {
+            BeginNewEvent(eventName);
+            return new EventScope(this);
+        } 
 
         /// <summary>
         /// Writes a custom event string parameter.
@@ -370,7 +386,7 @@ namespace FieldDay {
         /// Logs a new event.
         /// </summary>
         public void Log(LogEvent data) {
-            NewEvent(data.EventName);
+            BeginNewEvent(data.EventName);
             foreach(var kv in data.EventParameters) {
                 EventParam(kv.Key, kv.Value);
             }
@@ -578,6 +594,58 @@ namespace FieldDay {
         }
 
         #endregion // String Assembly
+
+        #region Helper
+
+        /// <summary>
+        /// Event logging helper object.
+        /// This automatically submits the current event
+        /// when disposed.
+        /// </summary>
+        public struct EventScope : IDisposable {
+            private OGDLog m_Logger;
+
+            internal EventScope(OGDLog logger) {
+                m_Logger = logger;
+            }
+
+            /// <summary>
+            /// Appends a parameter with a string value.
+            /// </summary>
+            public void Param(string paramName, string paramValue) {
+                m_Logger.EventParam(paramName, paramValue);
+            }
+
+            /// <summary>
+            /// Appends a parameter with an integer value.
+            /// </summary>
+            public void Param(string paramName, long paramValue) {
+                m_Logger.EventParam(paramName, paramValue);
+            }
+
+            /// <summary>
+            /// Appends a parameter with a floating point value.
+            /// </summary>
+            public void Param(string paramName, float paramValue) {
+                m_Logger.EventParam(paramName, paramValue);
+            }
+
+            /// <summary>
+            /// Appends a parameter with a boolean value.
+            /// </summary>
+            public void Param(string paramName, bool paramValue) {
+                m_Logger.EventParam(paramName, paramValue);
+            }
+
+            public void Dispose() {
+                if (m_Logger != null) {
+                    m_Logger.SubmitEvent();
+                    m_Logger = null;
+                }
+            }
+        }
+
+        #endregion // Helper
     }
 
     /// <summary>
