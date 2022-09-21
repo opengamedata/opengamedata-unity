@@ -11,6 +11,7 @@ public class BasicLoggingExample : MonoBehaviour {
     private void Start() {
         m_Logger = new OGDLog(appId, appVersion);
         m_Logger.SetUserId("default");
+        m_Logger.SetDebug(true);
     }
 
     private void Update() {

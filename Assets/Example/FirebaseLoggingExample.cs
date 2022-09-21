@@ -14,6 +14,7 @@ public class FirebaseLoggingExample : MonoBehaviour {
         m_Logger = new OGDLog(appId, appVersion);
         m_Logger.SetUserId("default");
         m_Logger.UseFirebase(firebase);
+        m_Logger.SetDebug(true);
     }
 
     private void Update() {
