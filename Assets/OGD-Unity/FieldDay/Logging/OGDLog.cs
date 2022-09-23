@@ -496,7 +496,7 @@ namespace FieldDay {
             m_SubmittedStreamLength = m_EventStream.Length;
 
             if (ModuleReady(ModuleId.OpenGameData)) {
-                EnsureBufferSize(m_EventStream.Length + EventStreamBufferPadding); // with some padding to ensure encoding doesn't result in any buffer overflows
+                EnsureBufferSize((m_EventStream.Length * 4 / 3) + EventStreamBufferPadding); // with some padding to ensure encoding doesn't result in any buffer overflows
 
                 // copy the current event stream into our buffer
                 // since it's not enclosed with array brackets, we offset it by 1
