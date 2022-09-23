@@ -1,5 +1,5 @@
 // Comment out the following line if we're no longer using the testing url
-#define USE_TESTING_ENDPOINT
+// #define USE_TESTING_ENDPOINT
 
 using System;
 

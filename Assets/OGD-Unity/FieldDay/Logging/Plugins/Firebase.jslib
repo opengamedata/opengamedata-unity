@@ -147,12 +147,12 @@ var OGDLogFirebaseLib = {
         };
 
         var appLoad = document.createElement("script");
-        appLoad.src = "https://www.gstatic.com/firebasejs/8.9.1/firebase-app.js";
+        appLoad.src = "https://www.gstatic.com/firebasejs/9.10.0/firebase-app-compat.js";
         appLoad.onload = onScriptLoaded;
         appLoad.onerror = onScriptError;
 
         var analyticsLoad = document.createElement("script");
-        analyticsLoad.src = "https://www.gstatic.com/firebasejs/8.9.1/firebase-analytics.js";
+        analyticsLoad.src = "https://www.gstatic.com/firebasejs/9.10.0/firebase-analytics-compat.js";
         analyticsLoad.onload = onScriptLoaded;
         analyticsLoad.onerror = onScriptError;
 
