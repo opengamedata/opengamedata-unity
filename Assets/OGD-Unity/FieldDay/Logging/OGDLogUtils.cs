@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -47,9 +48,9 @@ namespace FieldDay {
         /// <summary>
         /// Escapes the given string to JSON.
         /// </summary>
-        static internal void EscapeJSON(StringBuilder builder, string text) {
+        static internal StringBuilder EscapeJSON(this StringBuilder builder, string text) {
             if (text == null || text.Length == 0) {
-                return;
+                return builder;
             }
 
             unsafe {
@@ -95,14 +96,16 @@ namespace FieldDay {
                     }
                 }
             }
+
+            return builder;
         }
 
         /// <summary>
         /// Escapes the given string to JSON.
         /// </summary>
-        static internal unsafe void EscapeJSON(StringBuilder builder, char* textStart, int textLength) {
+        static internal unsafe StringBuilder EscapeJSON(this StringBuilder builder, char* textStart, int textLength) {
             if (textStart == null || textLength == 0) {
-                return;
+                return builder;
             }
 
             char* ptr = textStart;
@@ -144,13 +147,15 @@ namespace FieldDay {
                     }
                 }
             }
+
+            return builder;
         }
 
         /// <summary>
         /// Escapes the given string to JSON.
         /// </summary>
-        static internal unsafe void EscapeJSON(StringBuilder builder, ref FixedCharBuffer buffer) {
-            EscapeJSON(builder, buffer.Base, buffer.Length);
+        static internal unsafe StringBuilder EscapeJSON(this StringBuilder builder, ref FixedCharBuffer buffer) {
+            return EscapeJSON(builder, buffer.Base, buffer.Length);
         }
 
         /// <summary>
@@ -265,6 +270,68 @@ namespace FieldDay {
         }
 
         /// <summary>
+        /// Writes an integer to a StringBuilder without allocating GC memory.
+        /// </summary>
+        static internal unsafe StringBuilder AppendInteger(this StringBuilder builder, long integer, int padLeft) {
+            if (padLeft > 20) {
+                padLeft = 20;
+            }
+
+            char* buffer = stackalloc char[32];
+            int idx = 31;
+            int minIdx = idx - padLeft;
+            bool negative = integer < 0;
+            if (negative)
+            {
+                integer = -integer;
+            }
+            do
+            {
+                buffer[idx--] = (char) ('0' + (integer % 10));
+                integer /= 10;
+            }
+            while(integer != 0 || idx > minIdx);
+
+            if (negative)
+            {
+                buffer[idx--] = '-';
+            }
+
+            return builder.Append(buffer + idx + 1, 31 - idx);
+        }
+
+        /// <summary>
+        /// Writes an integer to a StringBuilder without allocating GC memory.
+        /// </summary>
+        static internal unsafe void WriteInteger(ref FixedCharBuffer builder, long integer, int padLeft) {
+            if (padLeft > 20) {
+                padLeft = 20;
+            }
+
+            char* buffer = stackalloc char[32];
+            int idx = 31;
+            int minIdx = idx - padLeft;
+            bool negative = integer < 0;
+            if (negative)
+            {
+                integer = -integer;
+            }
+            do
+            {
+                buffer[idx--] = (char) ('0' + (integer % 10));
+                integer /= 10;
+            }
+            while(integer != 0 || idx > minIdx);
+
+            if (negative)
+            {
+                buffer[idx--] = '-';
+            }
+
+            builder.Write(buffer + idx + 1, 31 - idx);
+        }
+
+        /// <summary>
         /// Aligns the given value.
         /// </summary>
         [MethodImpl(256)]
@@ -316,19 +383,32 @@ namespace FieldDay {
             *m_WriteHead++ = data;
             m_Remaining -= 1;
         }
+
+        public void Write(char* buffer, int length) {
+            if (length <= 0) {
+                return;
+            }
+
+            if (length > m_Remaining) {
+                throw new OutOfMemoryException(string.Format("Cannot write data - fixed buffer would be overrun"));
+            }
+
+            Buffer.MemoryCopy(buffer, m_WriteHead, m_Remaining * sizeof(char), length * sizeof(char));
+
+            m_WriteHead += length;
+            m_Remaining -= length;
+        }
     
         public void Write(long data) {
-            // TODO: Make this more efficient
-            Write(data.ToString());
+            OGDLogUtils.WriteInteger(ref this, data, 0);
         }
 
         public void Write(float data) {
             // TODO: Make this more efficient
-            Write(data.ToString());
+            Write(data.ToString(CultureInfo.InvariantCulture));
         }
 
         public void Write(bool data) {
-            // TODO: Make this more efficient
             Write(data ? "true" : "false");
         }
 

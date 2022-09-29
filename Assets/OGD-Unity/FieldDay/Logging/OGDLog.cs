@@ -71,11 +71,14 @@ namespace FieldDay {
         private SessionConsts m_SessionConsts;
 
         // state
-        private string m_Endpoint;
+        private Uri m_Endpoint;
         private uint m_EventSequence;
         private StatusFlags m_StatusFlags;
         private SettingsFlags m_Settings;
         private ModuleStatus[] m_ModuleStatus = new ModuleStatus[(int) ModuleId.COUNT];
+
+        // dispatcher
+        private FlushDispatcher m_FlushDispatcher;
 
         // data argument builder - this holds the event stream as a stringified json array, without the square brackets
         private readonly StringBuilder m_EventStream = new StringBuilder(EventStreamMinimumSize);
@@ -145,6 +148,11 @@ namespace FieldDay {
                 }
             }
 
+            if (m_FlushDispatcher) {
+                GameObject.Destroy(m_FlushDispatcher.gameObject);
+                m_FlushDispatcher = null;
+            }
+
             if (s_Instance == this) {
                 s_Instance = null;
             }
@@ -166,6 +174,14 @@ namespace FieldDay {
 
             m_StatusFlags |= StatusFlags.Initialized;
             SetModuleStatus(ModuleId.OpenGameData, ModuleStatus.Ready);
+
+            if (!m_FlushDispatcher) {
+                GameObject hostGO = new GameObject("[OGDLog Dispatcher]");
+                GameObject.DontDestroyOnLoad(hostGO);
+                hostGO.hideFlags = HideFlags.HideInHierarchy | HideFlags.DontSaveInEditor;
+                m_FlushDispatcher = hostGO.AddComponent<FlushDispatcher>();
+                m_FlushDispatcher.Initialize(this);
+            }
 
             if (ModuleReady(ModuleId.Firebase)) {
                 Firebase_SetAppConsts(constants);
@@ -278,8 +294,8 @@ namespace FieldDay {
                 m_EventStream.Append('{');
                 WriteEventParam("event_name", eventName);
                 WriteEventParam("event_sequence_index", eventSequenceIndex);
-                WriteEventParam("client_time", nowTime.ToString());
-                WriteEventParam("client_offset", clientOffset.ToString());
+                WriteEventParam("client_time", nowTime);
+                WriteEventParam("client_offset", clientOffset);
             }
 
             if (ModuleReady(ModuleId.Firebase)) {
@@ -390,7 +406,7 @@ namespace FieldDay {
         /// </summary>
         public void SubmitEvent() {
             FinishEventData();
-            Flush();
+            m_FlushDispatcher.enabled = true;
         }
 
         /// <summary>
@@ -410,16 +426,35 @@ namespace FieldDay {
         /// Writes an event parameter.
         /// </summary>
         private void WriteEventParam(string parameterName, string value) {
-            m_EventStream.Append('"').Append(parameterName).Append("\":\"");
-            OGDLogUtils.EscapeJSON(m_EventStream, value);
-            m_EventStream.Append("\",");
+            m_EventStream.Append('"').Append(parameterName).Append("\":\"")
+                .EscapeJSON(value)
+                .Append("\",");
         }
 
         /// <summary>
         /// Writes an event parameter.
         /// </summary>
         private void WriteEventParam(string parameterName, long value) {
-            m_EventStream.Append('"').Append(parameterName).Append("\":").Append(value).Append(',');
+            m_EventStream.Append('"').Append(parameterName).Append("\":").AppendInteger(value, 0).Append(',');
+        }
+
+        /// <summary>
+        /// Writes an event parameter.
+        /// </summary>
+        private void WriteEventParam(string parameterName, DateTime value) {
+            m_EventStream.Append('"').Append(parameterName).Append("\":\"")
+                .AppendInteger(value.Month, 2).Append('/').AppendInteger(value.Day, 2).Append('/').AppendInteger(value.Year, 4)
+                .Append(' ').AppendInteger(value.Hour, 2).Append(':').AppendInteger(value.Minute, 2).Append(':').AppendInteger(value.Second, 2)
+                .Append("\",");
+        }
+
+        /// <summary>
+        /// Writes an event parameter.
+        /// </summary>
+        private void WriteEventParam(string parameterName, TimeSpan value) {
+            m_EventStream.Append('"').Append(parameterName).Append("\":\"")
+                .AppendInteger(value.Hours, 2).Append(':').AppendInteger(value.Minutes, 2).Append(':').AppendInteger(value.Seconds, 2)
+                .Append("\",");
         }
 
         /// <summary>
@@ -465,9 +500,9 @@ namespace FieldDay {
                 if (ModuleReady(ModuleId.OpenGameData)) {
                     m_EventCustomParamsBuffer.TrimEnd(',');
                     m_EventCustomParamsBuffer.Write('}');
-                    m_EventStream.Append("\"event_data\":\"");
-                    OGDLogUtils.EscapeJSON(m_EventStream, ref m_EventCustomParamsBuffer);
-                    m_EventStream.Append("\",");
+                    m_EventStream.Append("\"event_data\":\"")
+                        .EscapeJSON(ref m_EventCustomParamsBuffer)
+                        .Append("\",");
                     m_EventCustomParamsBuffer.Clear();
                 }
 
@@ -571,11 +606,29 @@ namespace FieldDay {
             Array.Resize(ref m_EventStreamEncodingEscaped, newBufferSize);
         }
 
+        private class FlushDispatcher : MonoBehaviour {
+            private OGDLog m_Logger;
+
+            public void Initialize(OGDLog log) {
+                m_Logger = log;
+                enabled = false;
+            }
+
+            private void OnDestroy() {
+                m_Logger = null;
+            }
+
+            private void LateUpdate() {
+                m_Logger.Flush();
+                enabled = false;
+            }
+        }
+
         #endregion // Flush
 
         #region String Assembly
 
-        static private unsafe string BuildOGDUrl(OGDLogConsts ogdConsts, SessionConsts session) {
+        static private unsafe Uri BuildOGDUrl(OGDLogConsts ogdConsts, SessionConsts session) {
             char* buffer = stackalloc char[512];
             FixedCharBuffer charBuff = new FixedCharBuffer(buffer, 512);
             
@@ -601,7 +654,8 @@ namespace FieldDay {
                 charBuff.Write(Uri.EscapeDataString(session.UserData));
             }
 
-            return charBuff.ToString();
+            string uriString = charBuff.ToString();
+            return new Uri(uriString);
         }
 
         #endregion // String Assembly
