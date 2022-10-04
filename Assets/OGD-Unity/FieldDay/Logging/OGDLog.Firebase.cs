@@ -154,7 +154,7 @@ namespace FieldDay {
                             Firebase_PrepareFinish(1);
                         }
                     } else {
-                        UnityEngine.Debug.LogErrorFormat(("[OGDLog.Firebase] Could not resolve Firebase dependencies: {0}", dependencyStatus);
+                        UnityEngine.Debug.LogErrorFormat("[OGDLog.Firebase] Could not resolve Firebase dependencies: {0}", dependencyStatus);
                         Firebase_PrepareFinish(1);
                     }
                 });

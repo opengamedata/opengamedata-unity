@@ -10,13 +10,13 @@ Unity package for logging with Field Day's OpenGameData servers.
 
 ## Setup
 
-Run the following command from the `Submodules` folder:
+If you do not have `openupm-cli` interface installed, run the following command:
 
-`$ git submodule add -b main https://github.com/opengamedata/opengamedata-unity.git`
+`$ npm install -g openupm-cli`
 
-Then, add the following line to the project's `manifest.json` dependencies:
+Run the following command from the root folder of your project:
 
-`"com.fieldday.opengamedata-unity": "file:../Submodules/opengamedata-unity/Assets/OGD-Unity"`
+`$ openupm add com.fieldday.opengamedata-unity`
 
 ## Contents
 
