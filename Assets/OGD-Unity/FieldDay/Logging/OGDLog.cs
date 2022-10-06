@@ -284,7 +284,7 @@ namespace FieldDay {
             m_EventCustomParamsBuffer.Clear();
 
             DateTime nowTime = DateTime.UtcNow;
-            TimeSpan clientOffset = TimeZoneInfo.Local.BaseUtcOffset;
+            TimeSpan clientOffset = TimeZoneInfo.Local.GetUtcOffset(DateTime.Now);;
             uint eventSequenceIndex = m_EventSequence++;
 
             m_StatusFlags |= StatusFlags.WritingEvent;
@@ -442,9 +442,11 @@ namespace FieldDay {
         /// Writes an event parameter.
         /// </summary>
         private void WriteEventParam(string parameterName, DateTime value) {
+            // format: yyyy-MM-dd HH:mm:ss.fffZ
             m_EventStream.Append('"').Append(parameterName).Append("\":\"")
-                .AppendInteger(value.Month, 2).Append('/').AppendInteger(value.Day, 2).Append('/').AppendInteger(value.Year, 4)
+                .AppendInteger(value.Year, 4).Append('-').AppendInteger(value.Month, 2).Append('-').AppendInteger(value.Day, 2)
                 .Append(' ').AppendInteger(value.Hour, 2).Append(':').AppendInteger(value.Minute, 2).Append(':').AppendInteger(value.Second, 2)
+                .Append('.').AppendInteger(value.Millisecond, 3).Append('Z')
                 .Append("\",");
         }
 

@@ -112,14 +112,43 @@ var OGDLogFirebaseLib = {
             measurementId: Pointer_stringify(measurementId)
         };
 
-        var scriptsLoadedCount = 0;
-        var finishInitializing = function() {
-            FirebaseCache.analyticsState = "loaded";  
-            FirebaseCache.appInstance = firebase.initializeApp(appConfig);
-            FirebaseCache.analyticsInstance = FirebaseCache.appInstance.analytics();
-            gtag('config', 'ID', {
-                cookie_flags: "max-age=7200;secure;samesite=none"
-            });
+        // ensure these get loaded in sequence
+        var scriptQueue = [
+            "https://www.gstatic.com/firebasejs/9.10.0/firebase-app-compat.js",
+            "https://www.gstatic.com/firebasejs/9.10.0/firebase-analytics-compat.js"
+        ];
+
+        function loadNextScript() {
+            if (FirebaseCache.analyticsState != "loading") {
+                return;
+            }
+
+            if (scriptQueue.length > 0) {
+                var scriptPath = scriptQueue.shift();
+                var loadElement = document.createElement("script");
+                loadElement.src = scriptPath;
+                loadElement.onload = loadNextScript;
+                loadElement.onerror = onScriptError;
+                loadElement.crossOrigin = "anonymous";
+                document.head.appendChild(loadElement);
+            } else {
+                finishInitializing();
+            }
+        }
+
+        function finishInitializing() {
+            FirebaseCache.analyticsState = "loaded";
+            try {
+                FirebaseCache.appInstance = firebase.initializeApp(appConfig);
+                FirebaseCache.analyticsInstance = FirebaseCache.appInstance.analytics();
+                gtag('config', 'ID', {
+                    cookie_flags: "max-age=7200;secure;samesite=none"
+                });
+            } catch(e) {
+                FirebaseCache.analyticsInstance = null;
+                onScriptError();
+            }
+            
             if (!FirebaseCache.analyticsInstance) {
                 onScriptError();
             } else {
@@ -130,13 +159,7 @@ var OGDLogFirebaseLib = {
             }
         };
 
-        var onScriptLoaded = function() {
-            scriptsLoadedCount++;
-            if (scriptsLoadedCount >= 2 && FirebaseCache.analyticsState == "loading") {
-                finishInitializing();
-            }
-        };
-        var onScriptError = function() {
+        function onScriptError() {
             if (FirebaseCache.analyticsState != "error") {
                 FirebaseCache.analyticsState = "error";
                 console.error("[Firebase] Initialization failed");
@@ -146,18 +169,7 @@ var OGDLogFirebaseLib = {
             }
         };
 
-        var appLoad = document.createElement("script");
-        appLoad.src = "https://www.gstatic.com/firebasejs/9.10.0/firebase-app-compat.js";
-        appLoad.onload = onScriptLoaded;
-        appLoad.onerror = onScriptError;
-
-        var analyticsLoad = document.createElement("script");
-        analyticsLoad.src = "https://www.gstatic.com/firebasejs/9.10.0/firebase-analytics-compat.js";
-        analyticsLoad.onload = onScriptLoaded;
-        analyticsLoad.onerror = onScriptError;
-
-        document.head.appendChild(appLoad);
-        document.head.appendChild(analyticsLoad);
+        loadNextScript();
     },
 
     /**
