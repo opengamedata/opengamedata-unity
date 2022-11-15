@@ -79,7 +79,7 @@ var OGDLogFirebaseLib = {
             Object.assign(FirebaseCache.defaultParameters, FirebaseCache.appConsts);
             
             // if we're using legacy logging, copy user id to the parameters too
-            if (FirebaseCache.legacyConfig.copyUserIdToParameters != null) {
+            if (!!FirebaseCache.legacyConfig.copyUserIdToParameters) {
                 FirebaseCache.defaultParameters[FirebaseCache.copyUserIdToParameters] = FirebaseCache.sessionConsts.user_id;
             }
         }

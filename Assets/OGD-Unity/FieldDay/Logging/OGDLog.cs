@@ -339,6 +339,27 @@ namespace FieldDay {
         }
 
         /// <summary>
+        /// Writes a custom event string parameter.
+        /// </summary>
+        public void EventParam(string parameterName, StringBuilder parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingEventCustomData) == 0) {
+                throw new InvalidOperationException("No unsubmitted event to add an event parameter to");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                m_EventCustomParamsBuffer.Write('"');
+                m_EventCustomParamsBuffer.Write(parameterName);
+                m_EventCustomParamsBuffer.Write("\":\"");
+                OGDLogUtils.EscapeJSON(ref m_EventCustomParamsBuffer, parameterValue);
+                m_EventCustomParamsBuffer.Write("\",");
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetEventParam(parameterName, parameterValue.ToString());
+            }
+        }
+
+        /// <summary>
         /// Writes a custom event integer parameter.
         /// </summary>
         public void EventParam(string parameterName, long parameterValue) {
@@ -679,6 +700,13 @@ namespace FieldDay {
         /// Appends a parameter with a string value.
         /// </summary>
         public void Param(string paramName, string paramValue) {
+            m_Logger.EventParam(paramName, paramValue);
+        }
+
+        /// <summary>
+        /// Appends a parameter with a string value.
+        /// </summary>
+        public void Param(string paramName, StringBuilder paramValue) {
             m_Logger.EventParam(paramName, paramValue);
         }
 

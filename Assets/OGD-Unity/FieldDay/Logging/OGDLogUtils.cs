@@ -103,6 +103,57 @@ namespace FieldDay {
         /// <summary>
         /// Escapes the given string to JSON.
         /// </summary>
+        static internal StringBuilder EscapeJSON(this StringBuilder builder, StringBuilder text) {
+            if (text == null || text.Length == 0) {
+                return builder;
+            }
+
+            char c;
+            int i = 0;
+            int end = text.Length;
+            while(i != end) {
+                switch((c = text[i++])) {
+                    case '\\': {
+                        builder.Append("\\\\");
+                        break;
+                    }
+                    case '\"': {
+                        builder.Append("\\\"");
+                        break;
+                    }
+                    case '\n': {
+                        builder.Append("\\n");
+                        break;
+                    }
+                    case '\r': {
+                        builder.Append("\\r");
+                        break;
+                    }
+                    case '\t': {
+                        builder.Append("\\t");
+                        break;
+                    }
+                    case '\b': {
+                        builder.Append("\\b");
+                        break;
+                    }
+                    case '\f': {
+                        builder.Append("\\f");
+                        break;
+                    }
+                    default: {
+                        builder.Append(c);
+                        break;
+                    }
+                }
+            }
+            
+            return builder;
+        }
+
+        /// <summary>
+        /// Escapes the given string to JSON.
+        /// </summary>
         static internal unsafe StringBuilder EscapeJSON(this StringBuilder builder, char* textStart, int textLength) {
             if (textStart == null || textLength == 0) {
                 return builder;
@@ -206,6 +257,55 @@ namespace FieldDay {
                                 break;
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Escapes the given string to JSON.
+        /// </summary>
+        static internal void EscapeJSON(ref FixedCharBuffer buffer, StringBuilder text) {
+            if (text == null || text.Length == 0) {
+                return;
+            }
+
+            char c;
+            int i = 0;
+            int end = text.Length;
+            while(i != end) {
+                switch((c = text[i++])) {
+                    case '\\': {
+                        buffer.Write("\\\\");
+                        break;
+                    }
+                    case '\"': {
+                        buffer.Write("\\\"");
+                        break;
+                    }
+                    case '\n': {
+                        buffer.Write("\\n");
+                        break;
+                    }
+                    case '\r': {
+                        buffer.Write("\\r");
+                        break;
+                    }
+                    case '\t': {
+                        buffer.Write("\\t");
+                        break;
+                    }
+                    case '\b': {
+                        buffer.Write("\\b");
+                        break;
+                    }
+                    case '\f': {
+                        buffer.Write("\\f");
+                        break;
+                    }
+                    default: {
+                        buffer.Write(c);
+                        break;
                     }
                 }
             }

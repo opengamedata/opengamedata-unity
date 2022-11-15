@@ -2,12 +2,12 @@
     #define FIREBASE_EDITOR
     #if UNITY_WEBGL
         #define FIREBASE_EDITOR_JS
-    #else
+    #elif (UNITY_ANDROID || UNITY_IOS) || FIREBASE_INSTALLED
         #define FIREBASE_UNITY
     #endif
 #elif UNITY_WEBGL
     #define FIREBASE_JS
-#elif UNITY_ANDROID || UNITY_IOS
+#elif FIREBASE_INSTALLED || (UNITY_ANDROID || UNITY_IOS)
     #define FIREBASE_UNITY
 #else
     #warning The Firebase Unity package is not supported for this platform. 

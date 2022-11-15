@@ -1,4 +1,12 @@
-﻿using System.Collections.Generic;
+﻿#if UNITY_EDITOR
+#define SURVEY_EDITOR
+#elif UNITY_WEBGL
+#define SURVEY_WEBGL
+#else
+#define SURVEY_DISABLED
+#endif //
+
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using BeauData;
 using TMPro;
@@ -9,9 +17,13 @@ namespace FieldDay
 {
     public class Survey : MonoBehaviour
     {
+        #if SURVEY_WEBGL
+
         [DllImport("__Internal")]
-        public static extern string FetchSurvey(string surveyName);
-    
+        internal static extern string FetchSurvey(string surveyName);
+
+        #endif // SURVEY_WEBGL
+
         #region Inspector
 
         [Header("UI Dependencies")]
@@ -35,11 +47,11 @@ namespace FieldDay
             m_SubmitButton.onClick.AddListener(OnSubmit);
             if (displaySkipButton) m_SubmitButton.gameObject.SetActive(true);
 
-            #if UNITY_EDITOR
-            ReadSurveyData(string.Empty);
+            #if SURVEY_WEBGL
+            ReadSurveyData(FetchSurvey(inSurveyName));
             #else
-            FetchSurvey(inSurveyName);
-            #endif
+            ReadSurveyData(string.Empty);
+            #endif // SURVEY_WEBGL
         }
 
         private void ReadSurveyData(string inSurveyString)
