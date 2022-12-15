@@ -659,7 +659,7 @@ namespace FieldDay {
             charBuff.Write("?app_id=");
             charBuff.Write(Uri.EscapeDataString(ogdConsts.AppId.ToUpperInvariant()));
             charBuff.Write("&log_version=");
-            charBuff.Write(OGDLogConsts.LogVersion);
+            charBuff.Write(ogdConsts.ClientLogVersion);
             charBuff.Write("&app_version=");
             charBuff.Write(Uri.EscapeDataString(ogdConsts.AppVersion));
             charBuff.Write("&session_id=");
