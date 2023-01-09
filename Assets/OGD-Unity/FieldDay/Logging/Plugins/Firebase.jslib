@@ -141,7 +141,7 @@ var OGDLogFirebaseLib = {
             try {
                 FirebaseCache.appInstance = firebase.initializeApp(appConfig);
                 FirebaseCache.analyticsInstance = FirebaseCache.appInstance.analytics();
-                gtag('config', 'ID', {
+                gtag('config', appConfig.measurementId, {
                     cookie_flags: "max-age=7200;secure;samesite=none"
                 });
             } catch(e) {
