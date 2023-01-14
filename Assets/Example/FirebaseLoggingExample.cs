@@ -20,11 +20,11 @@ public class FirebaseLoggingExample : MonoBehaviour {
         while(!m_Logger.IsReady())
             yield return null;
 
-        using(var g = m_Logger.WriteGameState()) {
+        using(var g = m_Logger.OpenGameState()) {
             g.Param("platform", Application.platform.ToString());
         }
 
-        using(var u = m_Logger.WriteUserData()) {
+        using(var u = m_Logger.OpenUserData()) {
             u.Param("high_score", Random.Range(25, 68));
         }
     }

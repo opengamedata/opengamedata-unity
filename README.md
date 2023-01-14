@@ -7,6 +7,7 @@ Unity package for logging with Field Day's OpenGameData servers.
 1. Initial version
 2. Add reusable survey (19 May 2021)
 3. Firebase Analytics integration; Support for event constants; performance improvements (21 Sept 2022)
+4. Support for `game_state` and `user_data` parameters; support for sending arbitrary json as `event_data` (13 Jan 2023)
 
 ## Setup
 
@@ -41,7 +42,7 @@ To reset application-level constants, call `OGDLog.Initialize(appConsts);`
 
 ### Events
 
-To log an event, you can do so in one of two ways.
+To log an event, you can do so in one of three ways.
 
 You can do so with a series of function calls.
 
@@ -65,6 +66,14 @@ using(EventScope evt = m_Logger.NewEvent("eventName")) {
 } // upon exiting this block, the event will be automatically submitted
 ```
 
+You can also specify the parameter JSON manually. This will allow you to
+send an arbitrary JSON object, provided it is valid.
+
+```csharp
+m_Logger.Log("eventName", "{\"param1\":502}"); // send in a string
+m_Logger.Log("eventName", OGDLogUtils.Stringify(mySerializableObject)) // you can also stringify objects serializable by Unity's default serializer.
+```
+
 ### Events (Compability)
 
 For backwards compatibility, you can send events using a `LogEvent` object, which takes the following arguments:
@@ -75,12 +84,55 @@ For backwards compatibility, you can send events using a `LogEvent` object, whic
 Once a `LogEvent` object is constructed with the given data, it can then be passed into `OGDLog` with the `Log()` function.
 This will then log it using a sequence of calls similar to those listed in the previous section.
 
+### Game State
+
+To set the shared `game_state` parameter, you can do so in one of two ways.
+
+```csharp
+m_Logger.BeginGameState();
+    m_Logger.GameStateParam("shared1", 2);
+    m_Logger.GameStateParam("anotherName", "no-job");
+m_Logger.SubmitGameState();
+```
+
+You can also using a `GameStateScope` similar to how the `EventScope` functions.
+
+```csharp
+using(GameStateScope scope = m_Logger.OpenGameState()) {
+    scope.Param("anotherName", "some-job");
+    scope.Param("shared1", 467);
+}
+```
+
+### User Data
+
+The shared `user_data` parameter behaves similarly to the `game_state` parameter, with
+a nearly identical syntax, swapping `GameState` for `UserData` in method names.
+
+```csharp
+m_Logger.OpenUserData()
+m_Logger.BeginUserData()
+m_Logger.UserDataParam(...)
+m_Logger.SubmitUserData()
+```
+
+### Limitations
+
+Valid parameter types in OpenGameData are integer types, floating point values, strings,
+and `StringBuilder` instances.
+
+The maximum size of the event parameters for a single event is 4096 characters.
+The maximum size for `game_state` and `user_data` is 2048 characters each.
+
 ### Firebase Analytics
 
 To send events to a Firebase Analytics project, pass a `FirebaseConsts` object, or a JSON string for a `FirebaseConsts` object, to `OGDLog.UseFirebase()`.
 This is marked as `[Serializable]` in Unity, so including it as a serialized field on a `MonoBehaviour` or `ScriptableObject` is possible.
 
 This will initialize Firebase Analytics logging. Once Firebase Analytics has finished initializing, future events will be logged to it.
+
+**Note**: Shared parameters such as `game_state` and `user_data` will not be uploaded while Firebase Analytics is initializing. It is recommended to wait for the `OGDLog.IsReady()`
+method on your logger instance to return `true` before setting that shared data. 
 
 ### Firebase Analytics on Mobile
 

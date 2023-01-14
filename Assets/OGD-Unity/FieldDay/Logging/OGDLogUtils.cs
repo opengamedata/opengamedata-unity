@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
+using UnityEngine;
 
 namespace FieldDay {
     static public class OGDLogUtils {
@@ -41,6 +42,15 @@ namespace FieldDay {
         [MethodImpl(256)]
         static private long UUIDAccumulate(long uuid, int input, int multiply) {
             return (uuid * multiply) + (input % multiply);
+        }
+
+        /// <summary>
+        /// Stringifies the given object to JSON.
+        /// Note that Unity must consider this object to be [Serializable]
+        /// in order for this function to return a valid JSON string.
+        /// </summary>
+        static public string Stringify(object obj) {
+            return JsonUtility.ToJson(obj);
         }
 
         #region Escape

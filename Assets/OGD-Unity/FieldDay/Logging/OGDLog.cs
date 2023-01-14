@@ -576,13 +576,13 @@ namespace FieldDay {
         }
 
         /// <summary>
-        /// Begins setting shared game state with the given name.
+        /// Begins setting shared game state.
         /// This returns a disposable GameStateScope object
         /// that can accept parameters. It will
         /// submit the game state on dispose. Recommend to use
         /// with the `using` keyword
         /// </summary>
-        public GameStateScope WriteGameState() {
+        public GameStateScope OpenGameState() {
             BeginGameState();
             return new GameStateScope(this);
         }
@@ -677,7 +677,7 @@ namespace FieldDay {
         /// </summary>
         public void SubmitGameState() {
             if ((m_StatusFlags & StatusFlags.WritingGameState) != 0) {
-                EndBuffer(ref m_GameStateParamsBuffer, true);                
+                EndBuffer(ref m_GameStateParamsBuffer, true);
                 m_StatusFlags &= ~StatusFlags.WritingGameState;
             }
         }
@@ -703,13 +703,13 @@ namespace FieldDay {
         }
 
         /// <summary>
-        /// Begins setting shared user data with the given name.
+        /// Begins setting shared user data.
         /// This returns a disposable UserDataScope object
         /// that can accept parameters. It will
         /// submit the user data on dispose. Recommend to use
         /// with the `using` keyword
         /// </summary>
-        public UserDataScope WriteUserData() {
+        public UserDataScope OpenUserData() {
             BeginUserData();
             return new UserDataScope(this);
         }
