@@ -59,11 +59,6 @@ namespace FieldDay {
         /// (Optional) The player's personal ID.
         /// </summary>
         public string UserId;
-
-        /// <summary>
-        /// (Optional) Further data associated with the player ID.
-        /// </summary>
-        public string UserData;
     }
 
     /// <summary>

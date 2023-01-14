@@ -6,7 +6,6 @@ var OGDLogFirebaseLib = {
          */
         sessionConsts: {
             /** @type {string} */ user_id: null,
-            /** @type {string} */ user_data: null
         },
 
         /**
@@ -41,13 +40,23 @@ var OGDLogFirebaseLib = {
          * Current event instance.
          * @type {object}
          */
-        currentEventInstance: { },
+        currentEventInstance: {},
 
         /**
          * Current event identifier.
          * @type {string}
          */
         currentEventId: null,
+
+        /**
+         * Current game_state instance.
+         */
+        gameStateInstance: {},
+
+        /**
+         * Current user_data instance.
+         */
+        userDataInstance: {},
 
         /**
          * Tracks if analytics is loading.
@@ -59,28 +68,25 @@ var OGDLogFirebaseLib = {
          * Default logging parameters.
          * @type {object}
          */
-        defaultParameters: { },
+        defaultParameters: {},
 
         /**
          * Syncs constants.
          */
-        SyncSettings: function() {
+        SyncSettings: function () {
             if (!FirebaseCache.analyticsInstance) {
                 return;
             }
 
             // copy user properties
             FirebaseCache.analyticsInstance.setUserId(FirebaseCache.sessionConsts.user_id || "");
-            FirebaseCache.analyticsInstance.setUserProperties({
-                user_data: FirebaseCache.sessionConsts.user_data || ""
-            });
 
             // copy app constants to default parameters
             Object.assign(FirebaseCache.defaultParameters, FirebaseCache.appConsts);
-            
+
             // if we're using legacy logging, copy user id to the parameters too
             if (!!FirebaseCache.legacyConfig.copyUserIdToParameters) {
-                FirebaseCache.defaultParameters[FirebaseCache.copyUserIdToParameters] = FirebaseCache.sessionConsts.user_id;
+                FirebaseCache.defaultParameters[FirebaseCache.legacyConfig.copyUserIdToParameters] = FirebaseCache.sessionConsts.user_id;
             }
         }
     },
@@ -96,7 +102,7 @@ var OGDLogFirebaseLib = {
      * @param {Function} onFinished
      * @returns 
      */
-    OGDLog_FirebasePrepare: function(apiKey, projectId, storageBucket, messagingSenderId, appId, measurementId, onFinished) {
+    OGDLog_FirebasePrepare: function (apiKey, projectId, storageBucket, messagingSenderId, appId, measurementId, onFinished) {
         if (FirebaseCache.appInstance || FirebaseCache.analyticsState) {
             return;
         }
@@ -144,11 +150,11 @@ var OGDLogFirebaseLib = {
                 gtag('config', appConfig.measurementId, {
                     cookie_flags: "max-age=7200;secure;samesite=none"
                 });
-            } catch(e) {
+            } catch (e) {
                 FirebaseCache.analyticsInstance = null;
                 onScriptError();
             }
-            
+
             if (!FirebaseCache.analyticsInstance) {
                 onScriptError();
             } else {
@@ -176,7 +182,7 @@ var OGDLogFirebaseLib = {
      * Returns if Firebase Logging is ready.
      * @returns {boolean}
      */
-    OGDLog_FirebaseReady: function() {
+    OGDLog_FirebaseReady: function () {
         return !!FirebaseCache.analyticsInstance;
     },
 
@@ -184,19 +190,17 @@ var OGDLogFirebaseLib = {
      * Returns if Firebase Logging is loading.
      * @returns {boolean}
      */
-     OGDLog_FirebaseLoading: function() {
+    OGDLog_FirebaseLoading: function () {
         return FirebaseCache.analyticsState == "loading";
     },
 
     /**
      * Sets the session constants.
      * @param {string} userId
-     * @param {string} userData
      */
-    OGDLog_FirebaseSetSessionConsts: function(userId, userData) {
+    OGDLog_FirebaseSetSessionConsts: function (userId) {
         var sessionConsts = FirebaseCache.sessionConsts;
         sessionConsts.user_id = Pointer_stringify(userId);
-        sessionConsts.user_data = Pointer_stringify(userData);
         FirebaseCache.SyncSettings();
     },
 
@@ -206,7 +210,7 @@ var OGDLogFirebaseLib = {
      * @param {string} appFlavor 
      * @param {number} logVersion
      */
-    OGDLog_FirebaseSetAppConsts: function(appVersion, appFlavor, logVersion) {
+    OGDLog_FirebaseSetAppConsts: function (appVersion, appFlavor, logVersion) {
         var appConsts = FirebaseCache.appConsts;
         appConsts.app_version = Pointer_stringify(appVersion);
         appConsts.app_flavor = Pointer_stringify(appFlavor);
@@ -219,7 +223,7 @@ var OGDLogFirebaseLib = {
      * @param {string} optionId
      * @param {string} value 
      */
-    OGDLog_FirebaseConfigureLegacyOption: function(optionId, value) {
+    OGDLog_FirebaseConfigureLegacyOption: function (optionId, value) {
         FirebaseCache.legacyConfig[Pointer_stringify(optionId)] = value;
         FirebaseCache.SyncSettings();
     },
@@ -229,11 +233,15 @@ var OGDLogFirebaseLib = {
      * @param {string} eventName
      * @param {number} sequenceIndex 
      */
-    OGDLog_FirebaseNewEvent: function(eventName, sequenceIndex) {
+    OGDLog_FirebaseNewEvent: function (eventName, sequenceIndex) {
         FirebaseCache.currentEventId = Pointer_stringify(eventName);
         FirebaseCache.currentEventInstance = {
-            event_sequence_index: sequenceIndex
+            event_sequence_index: sequenceIndex,
         };
+
+        // TODO: where do user_data and game_state go?
+        Object.assign(FirebaseCache.currentEventInstance, FirebaseCache.userDataInstance);
+        Object.assign(FirebaseCache.currentEventInstance, FirebaseCache.gameStateInstance);
         Object.assign(FirebaseCache.currentEventInstance, FirebaseCache.defaultParameters);
     },
 
@@ -242,7 +250,7 @@ var OGDLogFirebaseLib = {
      * @param {string} paramName 
      * @param {number} numValue 
      */
-    OGDLog_FirebaseEventNumberParam: function(paramName, numValue) {
+    OGDLog_FirebaseEventNumberParam: function (paramName, numValue) {
         FirebaseCache.currentEventInstance[Pointer_stringify(paramName)] = numValue;
     },
 
@@ -251,7 +259,7 @@ var OGDLogFirebaseLib = {
      * @param {string} paramName 
      * @param {string} stringVal 
      */
-    OGDLog_FirebaseEventStringParam: function(paramName, stringVal) {
+    OGDLog_FirebaseEventStringParam: function (paramName, stringVal) {
         FirebaseCache.currentEventInstance[Pointer_stringify(paramName)] = Pointer_stringify(stringVal);
     },
 
@@ -260,7 +268,7 @@ var OGDLogFirebaseLib = {
      * @param {string} paramName 
      * @param {number} numValue 
      */
-     OGDLog_FirebaseDefaultNumberParam: function(paramName, numValue) {
+    OGDLog_FirebaseDefaultNumberParam: function (paramName, numValue) {
         FirebaseCache.defaultParameters[Pointer_stringify(paramName)] = numValue;
     },
 
@@ -269,20 +277,70 @@ var OGDLogFirebaseLib = {
      * @param {string} paramName 
      * @param {string} stringVal 
      */
-     OGDLog_FirebaseDefaultStringParam: function(paramName, stringVal) {
+    OGDLog_FirebaseDefaultStringParam: function (paramName, stringVal) {
         FirebaseCache.defaultParameters[Pointer_stringify(paramName)] = Pointer_stringify(stringVal);
     },
 
     /**
      * Submits the current event instance.
      */
-    OGDLog_FirebaseSubmitEvent: function() {
+    OGDLog_FirebaseSubmitEvent: function () {
         if (FirebaseCache.currentEventId) {
             FirebaseCache.analyticsInstance.logEvent(FirebaseCache.currentEventId, FirebaseCache.currentEventInstance);
             FirebaseCache.currentEventId = null;
             FirebaseCache.currentEventInstance = {};
         }
-    }
+    },
+
+    /**
+     * Resets the current game_state data.
+     */
+    OGDLog_FirebaseResetGameState: function () {
+        FirebaseCache.gameStateInstance = {};
+    },
+
+    /**
+     * Adds a game_state number parameter.
+     * @param {string} paramName 
+     * @param {number} numValue 
+     */
+    OGDLog_FirebaseGameStateNumberParam: function (paramName, numValue) {
+        FirebaseCache.gameStateInstance[Pointer_stringify(paramName)] = numValue;
+    },
+
+    /**
+     * Adds a game_state string parameter.
+     * @param {string} paramName 
+     * @param {string} stringVal 
+     */
+    OGDLog_FirebaseGameStateStringParam: function (paramName, stringVal) {
+        FirebaseCache.gameStateInstance[Pointer_stringify(paramName)] = Pointer_stringify(stringVal);
+    },
+
+    /**
+     * Resets the current user_data data.
+     */
+    OGDLog_FirebaseResetUserData: function () {
+        FirebaseCache.userDataInstance = {};
+    },
+
+    /**
+     * Adds a game_state number parameter.
+     * @param {string} paramName 
+     * @param {number} numValue 
+     */
+    OGDLog_FirebaseUserDataNumberParam: function (paramName, numValue) {
+        FirebaseCache.userDataInstance[Pointer_stringify(paramName)] = numValue;
+    },
+
+    /**
+     * Adds a game_state string parameter.
+     * @param {string} paramName 
+     * @param {string} stringVal 
+     */
+    OGDLog_FirebaseUserDataStringParam: function (paramName, stringVal) {
+        FirebaseCache.userDataInstance[Pointer_stringify(paramName)] = Pointer_stringify(stringVal);
+    },
 }
 
 // const FirebaseCache = OGDLogFirebaseLib.$FirebaseCache;

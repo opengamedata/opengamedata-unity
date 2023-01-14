@@ -46,10 +46,10 @@ namespace FieldDay {
         static private extern bool OGDLog_FirebaseLoading();
 
         [DllImport("__Internal")]
-        static private extern void OGDLog_FirebaseSetSessionConsts(string userId, string userData);
+        static private extern void OGDLog_FirebaseSetSessionConsts(string userId);
 
         [DllImport("__Internal")]
-        static private extern void OGDLog_FirebaseSetAppConsts(string appId, string appFlavor, int logVersion);
+        static private extern void OGDLog_FirebaseSetAppConsts(string appVersion, string appFlavor, int logVersion);
 
         [DllImport("__Internal")]
         static private extern void OGDLog_FirebaseConfigureLegacyOption(string optionId, string value);
@@ -58,19 +58,37 @@ namespace FieldDay {
         static private extern bool OGDLog_FirebaseNewEvent(string eventName, uint sequenceIndex);
 
         [DllImport("__Internal")]
-        static private extern bool OGDLog_FirebaseEventNumberParam(string paramName, float numValue);
+        static private extern bool OGDLog_FirebaseEventNumberParam(string paramName, double numValue);
 
         [DllImport("__Internal")]
         static private extern bool OGDLog_FirebaseEventStringParam(string paramName, string stringVal);
 
         [DllImport("__Internal")]
-        static private extern void OGDLog_FirebaseDefaultNumberParam(string paramName, float numValue);
+        static private extern void OGDLog_FirebaseDefaultNumberParam(string paramName, double numValue);
 
         [DllImport("__Internal")]
         static private extern void OGDLog_FirebaseDefaultStringParam(string paramName, string stringVal);
 
         [DllImport("__Internal")]
         static private extern bool OGDLog_FirebaseSubmitEvent();
+
+        [DllImport("__Internal")]
+        static private extern void OGDLog_FirebaseResetGameState();
+
+        [DllImport("__Internal")]
+        static private extern void OGDLog_FirebaseGameStateNumberParam(string paramName, double numValue);
+
+        [DllImport("__Internal")]
+        static private extern void OGDLog_FirebaseGameStateStringParam(string paramName, string stringVal);
+
+        [DllImport("__Internal")]
+        static private extern void OGDLog_FirebaseResetUserData();
+
+        [DllImport("__Internal")]
+        static private extern void OGDLog_FirebaseUserDataNumberParam(string paramName, double numValue);
+
+        [DllImport("__Internal")]
+        static private extern void OGDLog_FirebaseUserDataStringParam(string paramName, string stringVal);
 
         #endif // FIREBASE_JS
 
@@ -81,6 +99,8 @@ namespace FieldDay {
         private FirebaseApp m_FirebaseApp;
         private string m_CachedFirebaseEventId;
         private List<Firebase.Analytics.Parameter> m_CachedFirebaseEventParameters;
+        private List<Firebase.Analytics.Parameter> m_CachedFirebaseGameStateParameters;
+        private List<Firebase.Analytics.Parameter> m_CachedFirebaseUserDataParameters;
 
         #endif // FIREBASE_UNITY
 
@@ -105,9 +125,9 @@ namespace FieldDay {
             }
         }
 
-        #if UNITY_WEBGL
+        #if FIREBASE_JS || FIREBASE_EDITOR_JS
         [MonoPInvokeCallback(typeof(FirebaseInitializeCallback)), Preserve]
-        #endif // UNITY_WEBGL
+        #endif // FIREBASE_JS || FIREBASE_EDITOR_JS
         static private void Firebase_PrepareFinish(int error) {
             if (error != 0) {
                 s_QueuedFirebaseStatus = ModuleStatus.Error;
@@ -134,6 +154,8 @@ namespace FieldDay {
                 AppId = firebaseConsts.AppId
             };
             m_CachedFirebaseEventParameters = new List<Firebase.Analytics.Parameter>(8);
+            m_CachedFirebaseGameStateParameters = new List<Firebase.Analytics.Parameter>(8);
+            m_CachedFirebaseUserDataParameters = new List<Firebase.Analytics.Parameter>(8);
             #if UNITY_EDITOR // in editor we can just create it normally
                 try {
                     m_FirebaseApp = FirebaseApp.Create(options);
@@ -173,20 +195,15 @@ namespace FieldDay {
 
         private void Firebase_SetSessionConsts(SessionConsts sessionConsts) {
             #if FIREBASE_JS
-            OGDLog_FirebaseSetSessionConsts(sessionConsts.UserId, sessionConsts.UserData);
+            OGDLog_FirebaseSetSessionConsts(sessionConsts.UserId);
             #elif FIREBASE_UNITY
             FirebaseAnalytics.SetUserId(sessionConsts.UserId);
-            if (!string.IsNullOrEmpty(sessionConsts.UserData)) {
-                FirebaseAnalytics.SetUserProperty("user_data", sessionConsts.UserData);
-            } else {
-                FirebaseAnalytics.SetUserProperty("user_data", "");
-            }
             #endif // FIREBASE_JS
         }
 
         private void Firebase_SetAppConsts(OGDLogConsts appConsts) {
             #if FIREBASE_JS
-            OGDLog_FirebaseSetAppConsts(appConsts.AppId, appConsts.AppBranch, appConsts.ClientLogVersion);
+            OGDLog_FirebaseSetAppConsts(appConsts.AppVersion, appConsts.AppBranch, appConsts.ClientLogVersion);
             #endif // FIREBASE_JS
         }
 
@@ -222,7 +239,7 @@ namespace FieldDay {
             #endif // FIREBASE_JS
         }
 
-        private void Firebase_SetEventParam(string paramName, float paramValue) {
+        private void Firebase_SetEventParam(string paramName, double paramValue) {
             #if FIREBASE_JS
             OGDLog_FirebaseEventNumberParam(paramName, paramValue);
             #elif FIREBASE_UNITY
@@ -235,11 +252,106 @@ namespace FieldDay {
             OGDLog_FirebaseSubmitEvent();
             #elif FIREBASE_UNITY
             if (m_CachedFirebaseEventId != null) {
-                FirebaseAnalytics.LogEvent(m_CachedFirebaseEventId, m_CachedFirebaseEventParameters.ToArray());
+                FirebaseAnalytics.LogEvent(m_CachedFirebaseEventId, BuildParameterArray(m_CachedFirebaseEventParameters, m_CachedFirebaseGameStateParameters, m_CachedFirebaseUserDataParameters));
                 m_CachedFirebaseEventId = null;
-                m_CachedFirebaseEventParameters.Clear();
+                ClearParameterList(m_CachedFirebaseEventParameters);
             }
             #endif // FIREBASE_UNITY
         }
+
+        private void Firebase_ResetGameState() {
+            #if FIREBASE_JS
+            OGDLog_FirebaseResetGameState();
+            #elif FIREBASE_UNITY
+            ClearParameterList(m_CachedFirebaseGameStateParameters);
+            #endif // FIREBASE_JS
+        }
+
+        private void Firebase_SetGameStateParam(string paramName, string paramValue) {
+            #if FIREBASE_JS
+            OGDLog_FirebaseGameStateStringParam(paramName, paramValue);
+            #elif FIREBASE_UNITY
+            m_CachedFirebaseGameStateParameters.Add(new Parameter(paramName, paramValue));
+            #endif // FIREBASE_JS
+        }
+
+        private void Firebase_SetGameStateParam(string paramName, long paramValue) {
+            #if FIREBASE_JS
+            OGDLog_FirebaseGameStateNumberParam(paramName, paramValue);
+            #elif FIREBASE_UNITY
+            m_CachedFirebaseGameStateParameters.Add(new Parameter(paramName, paramValue));
+            #endif // FIREBASE_JS
+        }
+
+        private void Firebase_SetGameStateParam(string paramName, double paramValue) {
+            #if FIREBASE_JS
+            OGDLog_FirebaseGameStateNumberParam(paramName, paramValue);
+            #elif FIREBASE_UNITY
+            m_CachedFirebaseGameStateParameters.Add(new Parameter(paramName, paramValue));
+            #endif // FIREBASE_JS
+        }
+
+        private void Firebase_ResetUserData() {
+            #if FIREBASE_JS
+            OGDLog_FirebaseResetUserData();
+            #elif FIREBASE_UNITY
+            ClearParameterList(m_CachedFirebaseUserDataParameters);
+            #endif // FIREBASE_JS
+        }
+
+        private void Firebase_SetUserDataParam(string paramName, string paramValue) {
+            #if FIREBASE_JS
+            OGDLog_FirebaseUserDataStringParam(paramName, paramValue);
+            #elif FIREBASE_UNITY
+            m_CachedFirebaseUserDataParameters.Add(new Parameter(paramName, paramValue));
+            #endif // FIREBASE_JS
+        }
+
+        private void Firebase_SetUserDataParam(string paramName, long paramValue) {
+            #if FIREBASE_JS
+            OGDLog_FirebaseUserDataNumberParam(paramName, paramValue);
+            #elif FIREBASE_UNITY
+            m_CachedFirebaseUserDataParameters.Add(new Parameter(paramName, paramValue));
+            #endif // FIREBASE_JS
+        }
+
+        private void Firebase_SetUserDataParam(string paramName, double paramValue) {
+            #if FIREBASE_JS
+            OGDLog_FirebaseUserDataNumberParam(paramName, paramValue);
+            #elif FIREBASE_UNITY
+            m_CachedFirebaseUserDataParameters.Add(new Parameter(paramName, paramValue));
+            #endif // FIREBASE_JS
+        }
+
+        #if FIREBASE_UNITY
+
+        static private Parameter[] BuildParameterArray(List<Parameter> eventParams, List<Parameter> gameState, List<Parameter> userData) {
+            int totalCount = eventParams.Count + gameState.Count + userData.Count;
+            Parameter[] paramArr = new Parameter[totalCount];
+            int i = 0;
+            foreach(var param in eventParams) {
+                paramArr[i++] = param;
+            }
+            foreach(var param in gameState) {
+                paramArr[i++] = param;
+            }
+            foreach(var param in userData) {
+                paramArr[i++] = param;
+            }
+            return paramArr;
+        }
+
+        static private void ClearParameterList(List<Parameter> parameters) {
+            // TODO: Dispose of these if it's safe to do so
+            // The intended lifespan of a Parameter object is poorly documented
+            // in Firebase's plugin documentation
+            
+            // foreach(var param in parameters) {
+            //     param.Dispose();
+            // }
+            parameters.Clear();
+        }
+
+        #endif // FIREBASE_UNITY
     }
 }

@@ -310,7 +310,72 @@ namespace FieldDay {
                 }
             }
         }
+
+        /// <summary>
+        /// Escapes the given string to JSON.
+        /// </summary>
+        static internal void EscapeJSON(ref FixedCharBuffer buffer, FixedCharBuffer src) {
+            unsafe {
+                if (src.Base == null || src.Length == 0) {
+                    return;
+                }
+
+                char c;
+                int i = 0;
+                int end = src.Length;
+                while(i != end) {
+                    switch((c = *(src.Base + i++))) {
+                        case '\\': {
+                            buffer.Write("\\\\");
+                            break;
+                        }
+                        case '\"': {
+                            buffer.Write("\\\"");
+                            break;
+                        }
+                        case '\n': {
+                            buffer.Write("\\n");
+                            break;
+                        }
+                        case '\r': {
+                            buffer.Write("\\r");
+                            break;
+                        }
+                        case '\t': {
+                            buffer.Write("\\t");
+                            break;
+                        }
+                        case '\b': {
+                            buffer.Write("\\b");
+                            break;
+                        }
+                        case '\f': {
+                            buffer.Write("\\f");
+                            break;
+                        }
+                        default: {
+                            buffer.Write(c);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     
+        /// <summary>
+        /// Escapes the given buffer to JSON over itself.
+        /// </summary>
+        static internal void EscapeJSONInline(ref FixedCharBuffer buffer) {
+            unsafe {
+                int length = buffer.Length;
+                char* copy = stackalloc char[length];
+                FixedCharBuffer temp = new FixedCharBuffer("temp", copy, length);
+                temp.Write(buffer.Base, buffer.Length);
+                buffer.Clear();
+                EscapeJSON(ref buffer, temp);
+            }
+        }
+
         /// <summary>
         /// Escapes the given post data to ensure it can be passed in the request body.
         /// </summary>
@@ -350,24 +415,7 @@ namespace FieldDay {
 
         #endregion // Escape
 
-        /// <summary>
-        /// Trims characters from the end of the StringBuilder.
-        /// </summary>
-        static internal void TrimEnd(StringBuilder builder, char endChar) {
-            int length = builder.Length;
-            while(length > 0 && builder[length - 1] == endChar) {
-                length--;
-            }
-            builder.Length = length;
-        }
-
-        /// <summary>
-        /// Copies buffer data from one buffer to another.
-        /// </summary>
-        static internal unsafe void CopyArray<T>(T[] src, int srcOffset, int srcLength, T[] dest, int destOffset) where T : unmanaged {
-            int size = sizeof(T);
-            Buffer.BlockCopy(src, srcOffset * size, dest, destOffset * size, srcLength * size);
-        }
+        #region Numbers
 
         /// <summary>
         /// Writes an integer to a StringBuilder without allocating GC memory.
@@ -401,7 +449,7 @@ namespace FieldDay {
         }
 
         /// <summary>
-        /// Writes an integer to a StringBuilder without allocating GC memory.
+        /// Writes an integer to a FixedCharBuffer without allocating GC memory.
         /// </summary>
         static internal unsafe void WriteInteger(ref FixedCharBuffer builder, long integer, int padLeft) {
             if (padLeft > 20) {
@@ -432,11 +480,180 @@ namespace FieldDay {
         }
 
         /// <summary>
+        /// Writes a floating point value to a StringBuilder without allocating GC memory.
+        /// </summary>
+        static internal unsafe StringBuilder AppendNumber(StringBuilder builder, double value, int padLeft, int precision)
+        {
+            if (double.IsNaN(value))
+            {
+                return builder.Append("NaN");
+            }
+            else if (double.IsPositiveInfinity(value))
+            {
+                return builder.Append("Infinity");
+            }
+            else if (double.IsNegativeInfinity(value))
+            {
+                return builder.Append("-Infinity");
+            }
+
+            if (value < 0)
+            {
+                builder.Append('-');
+                value = -value;
+            }
+
+            if (precision > 20)
+            {
+                precision = 20;
+            }
+
+            if (precision >= 0)
+            {
+                value += s_RoundOffsets[precision];
+            }
+
+            long integerValue = (long) value;
+            AppendInteger(builder, integerValue, padLeft);
+
+            if (precision == 0)
+            {
+                return builder;
+            }
+
+            value -= integerValue;
+
+            if (precision < 0 && value == 0)
+            {
+                return builder;
+            }
+
+            int minLength = precision;
+            int maxLength = precision < 0 ? 4 : precision;
+
+            builder.Append('.');
+
+            int charsWritten = 0;
+            int digit;
+            do
+            {
+                value = value * 10;
+                digit = ((int) value % 10);
+                builder.Append((char) ('0' + digit));
+                value -= digit;
+                charsWritten++;
+            }
+            while(charsWritten < minLength || (charsWritten < maxLength && (value != 0)));
+
+            return builder;
+        }
+
+        /// <summary>
+        /// Writes a floating point value to a FixedCharBuffer without allocating GC memory.
+        /// </summary>
+        static internal unsafe void WriteNumber(ref FixedCharBuffer builder, double value, int padLeft, int precision)
+        {
+            if (double.IsNaN(value))
+            {
+                builder.Write("NaN");
+                return;
+            }
+            else if (double.IsPositiveInfinity(value))
+            {
+                builder.Write("Infinity");
+                return;
+            }
+            else if (double.IsNegativeInfinity(value))
+            {
+                builder.Write("-Infinity");
+                return;
+            }
+
+            if (value < 0)
+            {
+                builder.Write('-');
+                value = -value;
+            }
+
+            if (precision > 20)
+            {
+                precision = 20;
+            }
+
+            if (precision >= 0)
+            {
+                value += s_RoundOffsets[precision];
+            }
+
+            long integerValue = (long) value;
+            WriteInteger(ref builder, integerValue, padLeft);
+
+            if (precision == 0)
+            {
+                return;
+            }
+
+            value -= integerValue;
+
+            if (precision < 0 && value == 0)
+            {
+                return;
+            }
+
+            int minLength = precision;
+            int maxLength = precision < 0 ? 4 : precision;
+
+            builder.Write('.');
+
+            int charsWritten = 0;
+            int digit;
+            do
+            {
+                value = value * 10;
+                digit = ((int) value % 10);
+                builder.Write((char) ('0' + digit));
+                value -= digit;
+                charsWritten++;
+            }
+            while(charsWritten < minLength || (charsWritten < maxLength && (value != 0)));
+        }
+
+        static private readonly double[] s_RoundOffsets = new double[] { 0.5, 0.05, 0.005, 0.0005, 0.00005, 0.000005, 0.0000005, 0.00000005, 0.000000005, 0.0000000005, 0.00000000005 };
+
+        #endregion // Numbers
+
+        /// <summary>
         /// Aligns the given value.
         /// </summary>
         [MethodImpl(256)]
         static internal uint AlignUp(uint val, uint align) {
             return (val + align - 1) & ~(align - 1);
+        }
+
+        /// <summary>
+        /// Trims characters from the end of the StringBuilder.
+        /// </summary>
+        static internal void TrimEnd(StringBuilder builder, char endChar) {
+            int length = builder.Length;
+            while(length > 0 && builder[length - 1] == endChar) {
+                length--;
+            }
+            builder.Length = length;
+        }
+
+        /// <summary>
+        /// Appends the contents of a FixedCharBuffer to a StringBuilder.
+        /// </summary>
+        static internal unsafe StringBuilder AppendBuffer(this StringBuilder builder, ref FixedCharBuffer buffer) {
+            return builder.Append(buffer.Base, buffer.Length);
+        }
+
+        /// <summary>
+        /// Copies buffer data from one buffer to another.
+        /// </summary>
+        static internal unsafe void CopyArray<T>(T[] src, int srcOffset, int srcLength, T[] dest, int destOffset) where T : unmanaged {
+            int size = sizeof(T);
+            Buffer.BlockCopy(src, srcOffset * size, dest, destOffset * size, srcLength * size);
         }
     }
 
@@ -446,15 +663,21 @@ namespace FieldDay {
     internal unsafe struct FixedCharBuffer {
         public readonly char* Base;
         public readonly int Capacity;
+        public readonly string Name;
+
+        public char* Tail {
+            get { return Base + Capacity; }
+        }
 
         private char* m_WriteHead;
         private int m_Remaining;
 
-        internal FixedCharBuffer(char* buffer, int capacity) {
+        internal FixedCharBuffer(string name, char* buffer, int capacity) {
             Base = buffer;
             Capacity = capacity;
             m_WriteHead = buffer;
             m_Remaining = capacity;
+            Name = name;
         }
 
         public void Write(string data) {
@@ -464,7 +687,7 @@ namespace FieldDay {
 
             int length = data.Length;
             if (length > m_Remaining) {
-                throw new OutOfMemoryException(string.Format("Cannot write data - fixed buffer would be overrun"));
+                throw GetWriteException(length);
             }
 
             fixed(char* dataPtr = data) {
@@ -477,7 +700,7 @@ namespace FieldDay {
 
         public void Write(char data) {
             if (m_Remaining <= 0) {
-                throw new OutOfMemoryException(string.Format("Cannot write data - fixed buffer would be overrun"));
+                throw GetWriteException(1);
             }
 
             *m_WriteHead++ = data;
@@ -490,7 +713,7 @@ namespace FieldDay {
             }
 
             if (length > m_Remaining) {
-                throw new OutOfMemoryException(string.Format("Cannot write data - fixed buffer would be overrun"));
+                throw GetWriteException(length);
             }
 
             Buffer.MemoryCopy(buffer, m_WriteHead, m_Remaining * sizeof(char), length * sizeof(char));
@@ -503,9 +726,8 @@ namespace FieldDay {
             OGDLogUtils.WriteInteger(ref this, data, 0);
         }
 
-        public void Write(float data) {
-            // TODO: Make this more efficient
-            Write(data.ToString(CultureInfo.InvariantCulture));
+        public void Write(double data, int precision) {
+            OGDLogUtils.WriteNumber(ref this, data, 0, precision);
         }
 
         public void Write(bool data) {
@@ -523,6 +745,10 @@ namespace FieldDay {
 
             m_WriteHead -= count;
             m_Remaining += count;
+        }
+
+        public void NullTerminate() {
+            Write('\0');
         }
 
         public void TrimEnd(char endChar) {
@@ -547,6 +773,10 @@ namespace FieldDay {
             } else {
                 return null;
             }
+        }
+    
+        private Exception GetWriteException(int writeLength) {
+            return new OutOfMemoryException(string.Format("Cannot write {0} bytes to buffer '{1}' - only {2} bytes available of {3}", writeLength, Name, m_Remaining, Capacity));
         }
     }
 }

@@ -1,5 +1,6 @@
 using UnityEngine;
 using FieldDay;
+using System.Collections;
 
 public class BasicLoggingExample : MonoBehaviour {
     public string appId;
@@ -8,18 +9,35 @@ public class BasicLoggingExample : MonoBehaviour {
 
     private OGDLog m_Logger;
 
-    private void Start() {
+    private IEnumerator Start() {
         m_Logger = new OGDLog(appId, appVersion);
         m_Logger.SetUserId("default");
         m_Logger.SetDebug(true);
+
+        while(!m_Logger.IsReady())
+            yield return null;
+
+        using(var g = m_Logger.WriteGameState()) {
+            g.Param("platform", Application.platform.ToString());
+        }
+
+        using(var u = m_Logger.WriteUserData()) {
+            u.Param("high_score", Random.Range(25, 68));
+        }
     }
 
     private void Update() {
+        if (!m_Logger.IsReady()) {
+            return;
+        }
+
         if (Input.GetMouseButtonDown(0)) {
-            using(var e = m_Logger.NewEvent("mouse_clicked")) {
+            using(var e = m_Logger.NewEvent("test_event")) {
                 e.Param("mouseX", Input.mousePosition.x);
                 e.Param("mouseY", Input.mousePosition.y);
             }
+        } else if (Input.GetMouseButtonDown(1)) {
+            m_Logger.Log("test_structured", "{\"something\":[4,5,6,7,8,15],\"nesting\":{\"x\":15}}");
         }
     }
 }

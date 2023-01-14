@@ -16,8 +16,9 @@ namespace FieldDay {
 
         private const int EventStreamMinimumSize = 4096;
         private const int EventStreamBufferPadding = 512;
-        private const int EventStreamBufferInitialSize = 2048;
-        private const int EventCustomParamsBufferSize = 512;
+        private const int EventStreamBufferInitialSize = 4096;
+        private const int EventCustomParamsBufferSize = 4096;
+        private const int AdditionalStateBufferSize = 2048;
 
         static private readonly byte[] DataHeaderRawBytes = Encoding.UTF8.GetBytes("data=\"");
         static private readonly byte[] DataFooterRawBytes = Encoding.UTF8.GetBytes("\"");
@@ -31,7 +32,9 @@ namespace FieldDay {
             Initialized = 0x01,
             WritingEvent = 0x02,
             WritingEventCustomData = 0x04,
-            Flushing = 0x08
+            Flushing = 0x08,
+            WritingUserData = 0x10,
+            WritingGameState = 0x20
         }
 
         /// <summary>
@@ -85,7 +88,10 @@ namespace FieldDay {
         private int m_SubmittedStreamLength;
 
         // custom event parameter json builder - this holds the custom event parameters
+        private unsafe char* m_DataBufferHead;
         private FixedCharBuffer m_EventCustomParamsBuffer;
+        private FixedCharBuffer m_UserDataParamsBuffer;
+        private FixedCharBuffer m_GameStateParamsBuffer;
 
         // submit buffers
         private char[] m_EventStreamEncodingChars = new char[EventStreamBufferInitialSize];
@@ -102,7 +108,10 @@ namespace FieldDay {
             m_SessionConsts.SessionId = OGDLogUtils.UUIDint();
 
             unsafe {
-                m_EventCustomParamsBuffer = new FixedCharBuffer((char*) Marshal.AllocHGlobal(EventCustomParamsBufferSize * sizeof(char)), EventCustomParamsBufferSize);
+                m_DataBufferHead = (char*) Marshal.AllocHGlobal((EventCustomParamsBufferSize + 2 * AdditionalStateBufferSize) * sizeof(char));
+                m_EventCustomParamsBuffer = new FixedCharBuffer("event_data", m_DataBufferHead, EventCustomParamsBufferSize);
+                m_UserDataParamsBuffer = new FixedCharBuffer("player_data", m_EventCustomParamsBuffer.Tail, AdditionalStateBufferSize);
+                m_GameStateParamsBuffer = new FixedCharBuffer("game_state", m_UserDataParamsBuffer.Tail, AdditionalStateBufferSize);
             }
 
             m_Settings = SettingsFlags.Default;
@@ -138,13 +147,28 @@ namespace FieldDay {
         }
 
         /// <summary>
+        /// Returns if the logger is fully ready to log events.
+        /// </summary>
+        public bool IsReady() {
+            for(int i = 0; i < m_ModuleStatus.Length; i++) {
+                if (m_ModuleStatus[i] == ModuleStatus.Preparing) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Cleans up resources.
         /// </summary>
         public void Dispose() {
             unsafe {
-                if (m_EventCustomParamsBuffer.Base != null) {
-                    Marshal.FreeHGlobal((IntPtr) m_EventCustomParamsBuffer.Base);
+                if (m_DataBufferHead != null) {
+                    Marshal.FreeHGlobal((IntPtr) m_DataBufferHead);
                     m_EventCustomParamsBuffer = default(FixedCharBuffer);
+                    m_GameStateParamsBuffer = default(FixedCharBuffer);
+                    m_UserDataParamsBuffer = default(FixedCharBuffer);
                 }
             }
 
@@ -189,13 +213,12 @@ namespace FieldDay {
         }
 
         /// <summary>
-        /// Changes the UserId and UserData.
+        /// Changes the UserId.
         /// This information is submitted with every event.
         /// </summary>
-        public void SetUserId(string userId, string userData = null) {
-            if (m_SessionConsts.UserId != userId || m_SessionConsts.UserData != userData) {
+        public void SetUserId(string userId) {
+            if (m_SessionConsts.UserId != userId) {
                 m_SessionConsts.UserId = userId;
-                m_SessionConsts.UserData = userData;
                 m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts);
 
                 if (ModuleReady(ModuleId.Firebase)) {
@@ -292,10 +315,10 @@ namespace FieldDay {
             // if OpenGameData logging is enabled
             if (ModuleReady(ModuleId.OpenGameData)) {
                 m_EventStream.Append('{');
-                WriteEventParam("event_name", eventName);
-                WriteEventParam("event_sequence_index", eventSequenceIndex);
-                WriteEventParam("client_time", nowTime);
-                WriteEventParam("client_offset", clientOffset);
+                WriteStream(m_EventStream, "event_name", eventName);
+                WriteStream(m_EventStream, "event_sequence_index", eventSequenceIndex);
+                WriteStream(m_EventStream, "client_time", nowTime);
+                WriteStream(m_EventStream, "client_offset", clientOffset);
             }
 
             if (ModuleReady(ModuleId.Firebase)) {
@@ -315,7 +338,25 @@ namespace FieldDay {
         public EventScope NewEvent(string eventName) {
             BeginEvent(eventName);
             return new EventScope(this);
-        } 
+        }
+
+        /// <summary>
+        /// Logs an event with the given custom event_data json object.
+        /// </summary>
+        public void Log(string eventName, string eventJSON) {
+            BeginEvent(eventName);
+            EndEventCustomParamsFromString(eventJSON);
+            SubmitEvent();
+        }
+
+        /// <summary>
+        /// Logs an event with the given custom event_data json object.
+        /// </summary>
+        public void Log(string eventName, StringBuilder eventJSON) {
+            BeginEvent(eventName);
+            EndEventCustomParamsFromString(eventJSON);
+            SubmitEvent();
+        }
 
         /// <summary>
         /// Writes a custom event string parameter.
@@ -326,11 +367,7 @@ namespace FieldDay {
             }
 
             if (ModuleReady(ModuleId.OpenGameData)) {
-                m_EventCustomParamsBuffer.Write('"');
-                m_EventCustomParamsBuffer.Write(parameterName);
-                m_EventCustomParamsBuffer.Write("\":\"");
-                OGDLogUtils.EscapeJSON(ref m_EventCustomParamsBuffer, parameterValue);
-                m_EventCustomParamsBuffer.Write("\",");
+                WriteBuffer(ref m_EventCustomParamsBuffer, parameterName, parameterValue);
             }
 
             if (ModuleReady(ModuleId.Firebase)) {
@@ -347,11 +384,7 @@ namespace FieldDay {
             }
 
             if (ModuleReady(ModuleId.OpenGameData)) {
-                m_EventCustomParamsBuffer.Write('"');
-                m_EventCustomParamsBuffer.Write(parameterName);
-                m_EventCustomParamsBuffer.Write("\":\"");
-                OGDLogUtils.EscapeJSON(ref m_EventCustomParamsBuffer, parameterValue);
-                m_EventCustomParamsBuffer.Write("\",");
+                WriteBuffer(ref m_EventCustomParamsBuffer, parameterName, parameterValue);
             }
 
             if (ModuleReady(ModuleId.Firebase)) {
@@ -368,11 +401,7 @@ namespace FieldDay {
             }
 
             if (ModuleReady(ModuleId.OpenGameData)) {
-                m_EventCustomParamsBuffer.Write('"');
-                m_EventCustomParamsBuffer.Write(parameterName);
-                m_EventCustomParamsBuffer.Write("\":");
-                m_EventCustomParamsBuffer.Write(parameterValue);
-                m_EventCustomParamsBuffer.Write(',');
+                WriteBuffer(ref m_EventCustomParamsBuffer, parameterName, parameterValue);
             }
 
             if (ModuleReady(ModuleId.Firebase)) {
@@ -383,17 +412,13 @@ namespace FieldDay {
         /// <summary>
         /// Writes a custom event float parameter.
         /// </summary>
-        public void EventParam(string parameterName, float parameterValue) {
+        public void EventParam(string parameterName, double parameterValue, int precision = 3) {
             if ((m_StatusFlags & StatusFlags.WritingEventCustomData) == 0) {
                 throw new InvalidOperationException("No unsubmitted event to add an event parameter to");
             }
 
             if (ModuleReady(ModuleId.OpenGameData)) {
-                m_EventCustomParamsBuffer.Write('"');
-                m_EventCustomParamsBuffer.Write(parameterName);
-                m_EventCustomParamsBuffer.Write("\":");
-                m_EventCustomParamsBuffer.Write(parameterValue);
-                m_EventCustomParamsBuffer.Write(',');
+                WriteBuffer(ref m_EventCustomParamsBuffer, parameterName, parameterValue, precision);
             }
 
             if (ModuleReady(ModuleId.Firebase)) {
@@ -410,11 +435,7 @@ namespace FieldDay {
             }
 
             if (ModuleReady(ModuleId.OpenGameData)) {
-                m_EventCustomParamsBuffer.Write('"');
-                m_EventCustomParamsBuffer.Write(parameterName);
-                m_EventCustomParamsBuffer.Write("\":");
-                m_EventCustomParamsBuffer.Write(parameterValue);
-                m_EventCustomParamsBuffer.Write(',');
+                WriteBuffer(ref m_EventCustomParamsBuffer, parameterName, parameterValue);
             }
 
             if (ModuleReady(ModuleId.Firebase)) {
@@ -433,6 +454,7 @@ namespace FieldDay {
         /// <summary>
         /// Logs a new event.
         /// </summary>
+        [Obsolete("LogEvent is obsolete. Recommend that you use NewEvent", false)]
         public void Log(LogEvent data) {
             BeginEvent(data.EventName);
             foreach(var kv in data.EventParameters) {
@@ -444,43 +466,6 @@ namespace FieldDay {
         #region State
 
         /// <summary>
-        /// Writes an event parameter.
-        /// </summary>
-        private void WriteEventParam(string parameterName, string value) {
-            m_EventStream.Append('"').Append(parameterName).Append("\":\"")
-                .EscapeJSON(value)
-                .Append("\",");
-        }
-
-        /// <summary>
-        /// Writes an event parameter.
-        /// </summary>
-        private void WriteEventParam(string parameterName, long value) {
-            m_EventStream.Append('"').Append(parameterName).Append("\":").AppendInteger(value, 0).Append(',');
-        }
-
-        /// <summary>
-        /// Writes an event parameter.
-        /// </summary>
-        private void WriteEventParam(string parameterName, DateTime value) {
-            // format: yyyy-MM-dd HH:mm:ss.fffZ
-            m_EventStream.Append('"').Append(parameterName).Append("\":\"")
-                .AppendInteger(value.Year, 4).Append('-').AppendInteger(value.Month, 2).Append('-').AppendInteger(value.Day, 2)
-                .Append(' ').AppendInteger(value.Hour, 2).Append(':').AppendInteger(value.Minute, 2).Append(':').AppendInteger(value.Second, 2)
-                .Append('.').AppendInteger(value.Millisecond, 3).Append('Z')
-                .Append("\",");
-        }
-
-        /// <summary>
-        /// Writes an event parameter.
-        /// </summary>
-        private void WriteEventParam(string parameterName, TimeSpan value) {
-            m_EventStream.Append('"').Append(parameterName).Append("\":\"")
-                .AppendInteger(value.Hours, 2).Append(':').AppendInteger(value.Minutes, 2).Append(':').AppendInteger(value.Seconds, 2)
-                .Append("\",");
-        }
-
-        /// <summary>
         /// Finishes any unclosed event data strings.
         /// </summary>
         private void FinishEventData() {
@@ -488,6 +473,17 @@ namespace FieldDay {
 
             if ((m_StatusFlags & StatusFlags.WritingEvent) != 0) {
                 if (ModuleReady(ModuleId.OpenGameData)) {
+                    
+                    // if we're not currently writing user data, and we have user data, then write it here
+                    if ((m_StatusFlags & StatusFlags.WritingUserData) == 0 && m_UserDataParamsBuffer.Length > 0) {
+                        WriteStream(m_EventStream, "user_data", ref m_UserDataParamsBuffer, false);
+                    }
+
+                    // similar deal, except for writing game state
+                    if ((m_StatusFlags & StatusFlags.WritingGameState) == 0 && m_GameStateParamsBuffer.Length > 0) {
+                        WriteStream(m_EventStream, "game_state", ref m_GameStateParamsBuffer, false);
+                    }
+                    
                     OGDLogUtils.TrimEnd(m_EventStream, ',');
                     m_EventStream.Append("},");
                 }
@@ -510,8 +506,7 @@ namespace FieldDay {
 
             if ((m_StatusFlags & StatusFlags.WritingEventCustomData) == 0) {
                 m_StatusFlags |= StatusFlags.WritingEventCustomData;
-                m_EventCustomParamsBuffer.Clear();
-                m_EventCustomParamsBuffer.Write('{');
+                BeginBuffer(ref m_EventCustomParamsBuffer);
             }
         }
 
@@ -521,11 +516,36 @@ namespace FieldDay {
         private void EndEventCustomParams() {
             if ((m_StatusFlags & StatusFlags.WritingEventCustomData) != 0) {
                 if (ModuleReady(ModuleId.OpenGameData)) {
-                    m_EventCustomParamsBuffer.TrimEnd(',');
-                    m_EventCustomParamsBuffer.Write('}');
-                    m_EventStream.Append("\"event_data\":\"")
-                        .EscapeJSON(ref m_EventCustomParamsBuffer)
-                        .Append("\",");
+                    EndBuffer(ref m_EventCustomParamsBuffer, false);
+                    WriteStream(m_EventStream, "event_data", ref m_EventCustomParamsBuffer, true);
+                    m_EventCustomParamsBuffer.Clear();
+                }
+
+                m_StatusFlags &= ~StatusFlags.WritingEventCustomData;
+            }
+        }
+
+        /// <summary>
+        /// Ends the custom parameters section of an event and adds the given json string to the event data.
+        /// </summary>
+        private void EndEventCustomParamsFromString(string json) {
+            if ((m_StatusFlags & StatusFlags.WritingEventCustomData) != 0) {
+                if (ModuleReady(ModuleId.OpenGameData)) {
+                    WriteStream(m_EventStream, "event_data", json);
+                    m_EventCustomParamsBuffer.Clear();
+                }
+
+                m_StatusFlags &= ~StatusFlags.WritingEventCustomData;
+            }
+        }
+
+        /// <summary>
+        /// Ends the custom parameters section of an event and adds the given json string to the event data.
+        /// </summary>
+        private void EndEventCustomParamsFromString(StringBuilder json) {
+            if ((m_StatusFlags & StatusFlags.WritingEventCustomData) != 0) {
+                if (ModuleReady(ModuleId.OpenGameData)) {
+                    WriteStream(m_EventStream, "event_data", json);
                     m_EventCustomParamsBuffer.Clear();
                 }
 
@@ -536,6 +556,261 @@ namespace FieldDay {
         #endregion // State
 
         #endregion // Events
+
+        #region Game State
+
+        /// <summary>
+        /// Begins writing the shared game state event parameter.
+        /// </summary>
+        public void BeginGameState() {
+            if ((m_StatusFlags & StatusFlags.WritingGameState) != 0) {
+                throw new InvalidOperationException("Game State already open for writing");
+            }
+
+            m_StatusFlags |= StatusFlags.WritingGameState;
+            BeginBuffer(ref m_GameStateParamsBuffer);
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_ResetGameState();
+            }
+        }
+
+        /// <summary>
+        /// Begins setting shared game state with the given name.
+        /// This returns a disposable GameStateScope object
+        /// that can accept parameters. It will
+        /// submit the game state on dispose. Recommend to use
+        /// with the `using` keyword
+        /// </summary>
+        public GameStateScope WriteGameState() {
+            BeginGameState();
+            return new GameStateScope(this);
+        }
+
+        /// <summary>
+        /// Writes a custom game state string parameter.
+        /// </summary>
+        public void GameStateParam(string parameterName, string parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingGameState) == 0) {
+                throw new InvalidOperationException("Game State not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_GameStateParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetGameStateParam(parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game state string parameter.
+        /// </summary>
+        public void GameStateParam(string parameterName, StringBuilder parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingGameState) == 0) {
+                throw new InvalidOperationException("Game State not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_GameStateParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetGameStateParam(parameterName, parameterValue.ToString());
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game state integer parameter.
+        /// </summary>
+        public void GameStateParam(string parameterName, long parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingGameState) == 0) {
+                throw new InvalidOperationException("Game State not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_GameStateParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetGameStateParam(parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game state float parameter.
+        /// </summary>
+        public void GameStateParam(string parameterName, double parameterValue, int precision = 3) {
+            if ((m_StatusFlags & StatusFlags.WritingGameState) == 0) {
+                throw new InvalidOperationException("Game State not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_GameStateParamsBuffer, parameterName, parameterValue, precision);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetGameStateParam(parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game state boolean parameter.
+        /// </summary>
+        public void GameStateParam(string parameterName, bool parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingGameState) == 0) {
+                throw new InvalidOperationException("Game State not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_GameStateParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetGameStateParam(parameterName, parameterValue ? 1 : 0);
+            }
+        }
+
+        /// <summary>
+        /// Submits game state changes.
+        /// </summary>
+        public void SubmitGameState() {
+            if ((m_StatusFlags & StatusFlags.WritingGameState) != 0) {
+                EndBuffer(ref m_GameStateParamsBuffer, true);                
+                m_StatusFlags &= ~StatusFlags.WritingGameState;
+            }
+        }
+
+        #endregion // Game State
+
+        #region User Data
+
+        /// <summary>
+        /// Begins writing the shared user data event parameter.
+        /// </summary>
+        public void BeginUserData() {
+            if ((m_StatusFlags & StatusFlags.WritingUserData) != 0) {
+                throw new InvalidOperationException("User Data already open for writing");
+            }
+
+            m_StatusFlags |= StatusFlags.WritingUserData;
+            BeginBuffer(ref m_UserDataParamsBuffer);
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_ResetUserData();
+            }
+        }
+
+        /// <summary>
+        /// Begins setting shared user data with the given name.
+        /// This returns a disposable UserDataScope object
+        /// that can accept parameters. It will
+        /// submit the user data on dispose. Recommend to use
+        /// with the `using` keyword
+        /// </summary>
+        public UserDataScope WriteUserData() {
+            BeginUserData();
+            return new UserDataScope(this);
+        }
+
+        /// <summary>
+        /// Writes a custom user data string parameter.
+        /// </summary>
+        public void UserDataParam(string parameterName, string parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingUserData) == 0) {
+                throw new InvalidOperationException("User Data not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_UserDataParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetUserDataParam(parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom user data string parameter.
+        /// </summary>
+        public void UserDataParam(string parameterName, StringBuilder parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingUserData) == 0) {
+                throw new InvalidOperationException("User Data not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_UserDataParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetUserDataParam(parameterName, parameterValue.ToString());
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom user data integer parameter.
+        /// </summary>
+        public void UserDataParam(string parameterName, long parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingUserData) == 0) {
+                throw new InvalidOperationException("User Data not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_UserDataParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetUserDataParam(parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom user data float parameter.
+        /// </summary>
+        public void UserDataParam(string parameterName, double parameterValue, int precision = 3) {
+            if ((m_StatusFlags & StatusFlags.WritingUserData) == 0) {
+                throw new InvalidOperationException("User Data not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_UserDataParamsBuffer, parameterName, parameterValue, precision);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetUserDataParam(parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom user data boolean parameter.
+        /// </summary>
+        public void UserDataParam(string parameterName, bool parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingUserData) == 0) {
+                throw new InvalidOperationException("User Data not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_UserDataParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetUserDataParam(parameterName, parameterValue ? 1 : 0);
+            }
+        }
+
+        /// <summary>
+        /// Submits user data changes.
+        /// </summary>
+        public void SubmitUserData() {
+            if ((m_StatusFlags & StatusFlags.WritingUserData) != 0) {
+                EndBuffer(ref m_UserDataParamsBuffer, true);
+
+                m_StatusFlags &= ~StatusFlags.WritingUserData;
+            }
+        }
+
+        #endregion // User Data
 
         #region Flush
 
@@ -653,7 +928,7 @@ namespace FieldDay {
 
         static private unsafe Uri BuildOGDUrl(OGDLogConsts ogdConsts, SessionConsts session) {
             char* buffer = stackalloc char[512];
-            FixedCharBuffer charBuff = new FixedCharBuffer(buffer, 512);
+            FixedCharBuffer charBuff = new FixedCharBuffer("url", buffer, 512);
             
             charBuff.Write(OGDLogConsts.LogEndpoint);
             charBuff.Write("?app_id=");
@@ -672,88 +947,113 @@ namespace FieldDay {
                 charBuff.Write("&user_id=");
                 charBuff.Write(Uri.EscapeDataString(session.UserId));
             }
-            if (!string.IsNullOrEmpty(session.UserData)) {
-                charBuff.Write("&user_data=");
-                charBuff.Write(Uri.EscapeDataString(session.UserData));
-            }
 
             string uriString = charBuff.ToString();
             return new Uri(uriString);
         }
 
-        #endregion // String Assembly
-    }
+        // BUFFERS
 
-    /// <summary>
-    /// Event logging helper object.
-    /// This automatically submits the current event
-    /// when disposed.
-    /// </summary>
-    public struct EventScope : IDisposable {
-        private OGDLog m_Logger;
-
-        internal EventScope(OGDLog logger) {
-            m_Logger = logger;
+        static private void BeginBuffer(ref FixedCharBuffer buffer) {
+            buffer.Clear();
+            buffer.Write('{');
         }
 
-        /// <summary>
-        /// Appends a parameter with a string value.
-        /// </summary>
-        public void Param(string paramName, string paramValue) {
-            m_Logger.EventParam(paramName, paramValue);
-        }
-
-        /// <summary>
-        /// Appends a parameter with a string value.
-        /// </summary>
-        public void Param(string paramName, StringBuilder paramValue) {
-            m_Logger.EventParam(paramName, paramValue);
-        }
-
-        /// <summary>
-        /// Appends a parameter with an integer value.
-        /// </summary>
-        public void Param(string paramName, long paramValue) {
-            m_Logger.EventParam(paramName, paramValue);
-        }
-
-        /// <summary>
-        /// Appends a parameter with a floating point value.
-        /// </summary>
-        public void Param(string paramName, float paramValue) {
-            m_Logger.EventParam(paramName, paramValue);
-        }
-
-        /// <summary>
-        /// Appends a parameter with a boolean value.
-        /// </summary>
-        public void Param(string paramName, bool paramValue) {
-            m_Logger.EventParam(paramName, paramValue);
-        }
-
-        public void Dispose() {
-            if (m_Logger != null) {
-                m_Logger.SubmitEvent();
-                m_Logger = null;
+        static private void EndBuffer(ref FixedCharBuffer buffer, bool escape) {
+            buffer.TrimEnd(',');
+            buffer.Write('}');
+            if (escape) {
+                OGDLogUtils.EscapeJSONInline(ref buffer);
             }
         }
-    }
 
-    /// <summary>
-    /// Deprecated.
-    /// </summary>
-    public struct LogEvent {
-        public string EventName;
-        public Dictionary<string, string> EventParameters;
-
-        public LogEvent(Dictionary<string, string> data, Enum category) {
-            EventName = category.ToString();
-            EventParameters = data;
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, string parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":\"");
+            OGDLogUtils.EscapeJSON(ref buffer, parameterValue);
+            buffer.Write("\",");
         }
 
-        public LogEvent(Dictionary<string, string> data, string category) {
-            EventName = category;
-            EventParameters = data;
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, bool parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":\"");
+            buffer.Write(parameterValue);
+            buffer.Write("\",");
         }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, StringBuilder parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":\"");
+            OGDLogUtils.EscapeJSON(ref buffer, parameterValue);
+            buffer.Write("\",");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, long parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":\"");
+            buffer.Write(parameterValue);
+            buffer.Write("\",");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, double parameterValue, int precision) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":\"");
+            buffer.Write(parameterValue, precision);
+            buffer.Write("\",");
+        }
+
+        // EVENT STREAM
+
+        static private void WriteStream(StringBuilder stream, string parameterName, long value) {
+            stream.Append('"').Append(parameterName).Append("\":").AppendInteger(value, 0).Append(',');
+        }
+
+        static private void WriteStream(StringBuilder stream, string parameterName, DateTime value) {
+            // format: yyyy-MM-dd HH:mm:ss.fffZ
+            stream.Append('"').Append(parameterName).Append("\":\"")
+                .AppendInteger(value.Year, 4).Append('-').AppendInteger(value.Month, 2).Append('-').AppendInteger(value.Day, 2)
+                .Append(' ').AppendInteger(value.Hour, 2).Append(':').AppendInteger(value.Minute, 2).Append(':').AppendInteger(value.Second, 2)
+                .Append('.').AppendInteger(value.Millisecond, 3).Append('Z')
+                .Append("\",");
+        }
+
+        /// <summary>
+        /// Writes an event parameter.
+        /// </summary>
+        static private void WriteStream(StringBuilder stream, string parameterName, TimeSpan value) {
+            stream.Append('"').Append(parameterName).Append("\":\"")
+                .AppendInteger(value.Hours, 2).Append(':').AppendInteger(value.Minutes, 2).Append(':').AppendInteger(value.Seconds, 2)
+                .Append("\",");
+        }
+
+        static private void WriteStream(StringBuilder stream, string parameterName, ref FixedCharBuffer buffer, bool escape) {
+            stream.Append('"').Append(parameterName).Append("\":\"");
+            if (escape) {
+                stream.EscapeJSON(ref buffer);
+            } else {
+                stream.AppendBuffer(ref buffer);
+            }
+
+            stream.Append("\",");
+        }
+
+        static private void WriteStream(StringBuilder stream, string parameterName, string json) {
+            stream.Append('"').Append(parameterName).Append("\":\"")
+                .EscapeJSON(json)
+                .Append("\",");
+        }
+
+        static private void WriteStream(StringBuilder stream, string parameterName, StringBuilder json) {
+            stream.Append('"').Append(parameterName).Append("\":\"")
+                .EscapeJSON(json)
+                .Append("\",");
+        }
+
+        #endregion // String Assembly
     }
 }
