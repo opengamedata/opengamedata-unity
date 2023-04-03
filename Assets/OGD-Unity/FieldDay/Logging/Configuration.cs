@@ -40,9 +40,9 @@ namespace FieldDay {
         /// </summary>
         public const string LogEndpoint = 
         #if USE_TESTING_ENDPOINT
-            "https://fielddaylab.wisc.edu/logger-testing/log.php";
+            "https://ogdlogger.fielddaylab.wisc.edu/logger-testing/log.php";
         #else
-            "https://fielddaylab.wisc.edu/logger/log.php";
+            "https://ogdlogger.fielddaylab.wisc.edu/logger/log.php";
         #endif // USE_TESTING_ENDPOINT
     }
 

@@ -978,9 +978,9 @@ namespace FieldDay {
         static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, bool parameterValue) {
             buffer.Write('"');
             buffer.Write(parameterName);
-            buffer.Write("\":\"");
+            buffer.Write("\":");
             buffer.Write(parameterValue);
-            buffer.Write("\",");
+            buffer.Write(',');
         }
 
         static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, StringBuilder parameterValue) {
@@ -994,17 +994,17 @@ namespace FieldDay {
         static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, long parameterValue) {
             buffer.Write('"');
             buffer.Write(parameterName);
-            buffer.Write("\":\"");
+            buffer.Write("\":");
             buffer.Write(parameterValue);
-            buffer.Write("\",");
+            buffer.Write(',');
         }
 
         static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, double parameterValue, int precision) {
             buffer.Write('"');
             buffer.Write(parameterName);
-            buffer.Write("\":\"");
+            buffer.Write("\":");
             buffer.Write(parameterValue, precision);
-            buffer.Write("\",");
+            buffer.Write(',');
         }
 
         // EVENT STREAM
