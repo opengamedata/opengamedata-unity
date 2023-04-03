@@ -79,7 +79,7 @@ namespace FieldDay
                 playerIdStr = SimpleLogUtils.BuildUrlString("&playerId={0}", Uri.EscapeDataString(playerId.ToString()));
             }
 
-            reqUrl = SimpleLogUtils.BuildUrlString("https://fielddaylab.wisc.edu/logger/log.php?app_id={0}&app_version={1}&session_id={2}&persistent_session_id={3}{4}",
+            reqUrl = SimpleLogUtils.BuildUrlString("https://ogdlogger.fielddaylab.wisc.edu/logger/log.php?app_id={0}&app_version={1}&session_id={2}&persistent_session_id={3}{4}",
                                                     Uri.EscapeDataString(appId), Uri.EscapeDataString(appVersion.ToString()),
                                                     Uri.EscapeDataString(sessionId.ToString()), Uri.EscapeDataString(persistentSessionId), playerIdStr);
         }
@@ -114,7 +114,7 @@ namespace FieldDay
             // TODO: Ensure ASCII from Jo Wilder SimpleLog (if necessary)
             string postData = SimpleLogUtils.BuildUrlString("data={0}", Uri.EscapeDataString(SimpleLogUtils.BuildPostDataString(accruedLog)));
 
-            // Send a POST request to https://fielddaylab.wisc.edu/logger/log.php with the proper content type
+            // Send a POST request to the logging server with the proper content type
             UnityWebRequest req = UnityWebRequest.Post(postUrl, postData);
             req.SetRequestHeader("Content-Type", "application/x-www-form-urlencoded");
 
