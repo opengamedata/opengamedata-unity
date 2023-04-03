@@ -1,0 +1,63 @@
+{
+    "package_config_id": "survey_test",
+    "surveys": [
+        {
+            "display_event_id": "example",
+            "header": "A Survey Test Case",
+            "pages": [
+                {
+                    "items": [
+                        {
+                            "prompt": "Are you reading a survey question?",
+                            "responses": [
+                                "Yes", "No"
+                            ]
+                        },
+                        {
+                            "prompt": "Are you responding to the survey question?",
+                            "responses": [
+                                "Yes", "No"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "items": [
+                        {
+                            "prompt": "How often do you think about Mars?",
+                            "responses": [
+                                "Every Day", "Every Hour", "eeeeeeeee", "Never"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "items": [
+                        {
+                            "prompt": "When I said \"Mars\", which of these did you think of?",
+                            "responses": [
+                                "Rome", "Planet", "Candy", "Other"
+                            ]
+                        },
+                        {
+                            "prompt": "How does that make you feel?",
+                            "responses": [
+                                "Ashamed", "Giddy", "Curious", "Neutral", "Agitated"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "items": [
+                        {
+                            "prompt": "Was this survey to your satisfaction?",
+                            "responses": [
+                                "Nope", "Uhhh", "Definitely Not"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
