@@ -385,6 +385,8 @@ MonoBehaviour:
   m_QuestionLayout: {fileID: 3716807878716562378}
   m_QuestionPrefab: {fileID: 2399614719670412535, guid: 575f58c5f39bbf44bb2cabf891ae4c67,
     type: 3}
+  m_ResponsePrefab: {fileID: 7842835166434953078, guid: 8f1dc7f1fbc95b74189d9ca6ceddfd89,
+    type: 3}
   m_ButtonGroup: {fileID: 5295685656934815297}
   m_ContinueButton: {fileID: 6642907650035332191}
   m_FinishButton: {fileID: 4046393260847079903}

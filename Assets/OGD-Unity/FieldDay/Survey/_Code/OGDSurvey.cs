@@ -44,6 +44,9 @@ namespace FieldDay
 
         #region Package Management
 
+        /// <summary>
+        /// Loads an existing SurveyPackage instance.
+        /// </summary>
         public void LoadSurveyPackage(SurveyPackage package) {
             if (package != null && !SurveyPackage.Validate(package)) {
                 Debug.LogError("[OGDSurvey] Survey package contains invalid data");
@@ -53,6 +56,9 @@ namespace FieldDay
             m_CurrentSurveyPackage = package;
         }
 
+        /// <summary>
+        /// Parses the given JSON string into a SurveyPackage instance.
+        /// </summary>
         public void LoadSurveyPackageFromString(string packageJSON) {
             m_CurrentSurveyPackage = SurveyPackage.Parse(packageJSON);
             if (m_CurrentSurveyPackage == null) {
@@ -63,6 +69,9 @@ namespace FieldDay
             }
         }
 
+        /// <summary>
+        /// Parses the given JSON file into a SurveyPackage instance.
+        /// </summary>
         public void LoadSurveyPackageFromString(TextAsset packageJSONFile) {
             LoadSurveyPackageFromString(packageJSONFile.text);
         }
@@ -101,12 +110,14 @@ namespace FieldDay
         /// Attempts to display a survey with the given event id.
         /// Invokes a callback when the survey is finished, or if no survey was displayed.
         /// </summary>
-        public void DisplaySurvey(string displayEventId, Action resumeCallback) {
+        public bool DisplaySurvey(string displayEventId, Action resumeCallback) {
             bool displayed = TryDisplaySurvey(displayEventId);
             if (displayed) {
                 m_CachedResumeCallback = resumeCallback;
+                return true;
             } else {
                 resumeCallback?.Invoke();
+                return false;
             }
         }
 
@@ -120,6 +131,25 @@ namespace FieldDay
                     yield return null;
                 }
             }
+        }
+
+        /// <summary>
+        /// Cancels the currently running survey immediately.
+        /// </summary>
+        public bool CancelSurvey() {
+            if (m_InstantiatedSurvey != null) {
+                SurveyPanel cachedSurvey = m_InstantiatedSurvey;
+                m_InstantiatedSurvey = null;
+
+                OnSurveyEnd?.Invoke(cachedSurvey);
+                m_CachedResumeCallback?.Invoke();
+                m_CachedResumeCallback = null;
+                
+                GameObject.Destroy(cachedSurvey.gameObject);
+                return true;
+            }
+
+            return false;
         }
 
         #endregion // Survey Display

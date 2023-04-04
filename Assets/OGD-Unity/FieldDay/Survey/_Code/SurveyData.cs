@@ -54,7 +54,7 @@ namespace FieldDay
 
             bool valid = true;
             for(int i = 0; i < package.surveys.Length; i++) {
-                valid |= SurveyData.Validate(package.surveys[i]);
+                valid &= SurveyData.Validate(package.surveys[i]);
             }
 
             return valid;

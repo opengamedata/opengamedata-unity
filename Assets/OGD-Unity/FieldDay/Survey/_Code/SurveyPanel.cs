@@ -32,6 +32,7 @@ namespace FieldDay
         [Header("Questions")]
         [SerializeField] private LayoutGroup m_QuestionLayout = null;
         [SerializeField] private SurveyQuestionDisplay m_QuestionPrefab = null;
+        [SerializeField] private Toggle m_ResponsePrefab = null;
 
         [Header("Controls")]
         [SerializeField] private CanvasGroup m_ButtonGroup = null;
@@ -40,7 +41,7 @@ namespace FieldDay
         [SerializeField] private float m_ButtonGroupDisabledAlpha = 0.5f;
 
         [Header("Extra")]
-        [SerializeField] private TMP_Text m_PageCountDisplay = null;
+        [SerializeField, Tooltip("Optional. Will display the current page along with the total page count.")] private TMP_Text m_PageCountDisplay = null;
         [SerializeField] private string m_PageCountFormat = "{0}/{1}";
 
         #endregion // Inspector
@@ -132,10 +133,6 @@ namespace FieldDay
             m_FinishButton.onClick.AddListener(OnNextClicked);
         }
 
-        private void OnDisable() {
-            FlushData();
-        }
-
         #endregion // Unity Events
 
         #region Loading
@@ -195,7 +192,7 @@ namespace FieldDay
             int questionIndexOffset = pageIndex > 0 ? m_PageOffsets[pageIndex - 1] : 0;
 
             for(int i = 0; i < page.Questions.Length; i++) {
-                m_InstantiatedQuestions[i].LoadQuestion(page.Questions[i], i + questionIndexOffset);
+                m_InstantiatedQuestions[i].LoadQuestion(page.Questions[i], i + questionIndexOffset, m_ResponsePrefab);
             }
 
             RecursiveLayoutRebuild((RectTransform) m_QuestionLayout.transform);

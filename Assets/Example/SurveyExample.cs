@@ -23,6 +23,18 @@ public class SurveyExample : MonoBehaviour {
         m_Survey = new OGDSurvey(SurveyPrefab, m_Logger);
         m_Survey.LoadSurveyPackageFromString(SurveyText.text);
 
-        m_Survey.TryDisplaySurvey("example");
+        yield return m_Survey.DisplaySurveyAndWait("example");
+
+        Debug.Log("Finished survey!");
+    }
+
+    private void LateUpdate() {
+        if (m_Survey == null) {
+            return;
+        }
+        
+        if (Input.GetKeyDown(KeyCode.Escape)) {
+            m_Survey.CancelSurvey();
+        }
     }
 }

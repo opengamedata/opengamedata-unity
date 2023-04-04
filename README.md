@@ -28,6 +28,10 @@ Run the following command from the root folder of your project:
 - `LogEvent`: wrapper class for the data objects that get sent through `OGDLog`
 - `OGDLogConsts`: wrapper struct for various app-level OpenGameData constants.
 - `FirebaseConsts`: wrapper struct for Firebase initialization parameters.
+- `OGDSurvey`: handles survey loading and display management
+- `SurveyData`: outlines the data schema for survey data
+- `SurveyPanel`: controller for the survey popup
+- `SurveyQuestionDisplay`: controller for the individual questions in a survey popup
 
 ## Logging
 
@@ -147,13 +151,78 @@ Logging to Firebase for Android or iOS will require an additional Unity package.
 
 ## Survey
 
-Survey packages are `.json` files.
+A `Survey` is a series of questions asked to the player at certain moments of the game (as defined by the developer). These questions are organized into `Pages`, which are displayed to the player in succession. Once the survey is completed, the results are logged using an `OGDLog` instance to the `survey_submitted` event.
+
+### Survey Data
+
+Survey packages are `.json` files. Survey packages must follow the following schema:
+```json
+
+{
+    "package_config_id": "some-survey-package-id", // A unique package identifier
+    "surveys": [ // an array of survey objects
+        {
+            "display_event_id": "some-event-id", // event id used by the game to reference this survey
+            "header": "A Survey Header", // text to display at the top of the survey,
+            "pages": [ // array of survey pages
+                {
+                    "items": [ // array of survey questions
+                        {
+                            "prompt": "This is a survey question. Can you understand it?", // the displayed question text
+                            "responses": [ "Yes", "No", "What?" ] // array of possible responses for the player to pick between
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
+```
 
 An example asset is provided [here](https://github.com/opengamedata/opengamedata-unity/blob/main/Assets/Example/survey_example.json).
 
-An instance of `OGDSurvey` must be created in order to properly handle survey display and logging.
+### OGDSurvey
 
-(Survey documentation is in progress)
+An instance of `OGDSurvey` must be created in order to properly handle survey display and logging. This can be instantiated using the following code:
+
+`OGDSurvey surveyManager = new OGDSurvey(mySurveyPanelPrefab, myOGDLogInstance)`
+
+This requires a reference to a `SurveyPanel` prefab.
+
+From there, a survey package can be loaded using the following methods:
+
+```csharp
+surveyManager.LoadSurveyPackage(mySurveyPackageInstance); // from a SurveyPackage directly
+surveyManager.LoadSurveyPackageFromString(someJsonString); // from a JSON string)
+surveyManager.LoadSurveyPackageFromString(someTextAsset); // from a TextAsset containing JSON contents
+```
+
+To display a survey for the given `display_event_id`, you can call one of these variants of the `DisplaySurvey` method:
+
+```csharp
+surveyManager.TryDisplaySurvey("my_event_id"); // this will attempt to display the survey with the given event id and return whether or not there was a corresponding survey to display
+surveyManager.DisplaySurvey("my_event_id", ResumeGame); // this will display a survey and invoke the given callback when the survey is completed. it will invoke the callback immediately if no survey is present
+yield return surveyManager.DisplaySurveyAndWait("my_event_id"); // for use in coroutines. this will attempt to display the correct survey, and will proceed once the survey is completed (or if no survey was found)
+```
+
+Note that you can only have one survey displayed at a time. To cancel the currently displayed survey, discarding its results in the process, call `surveyManager.CancelSurvey()`.
+
+### SurveyPanel Prefab
+
+Within the `Survey/_Assets` subfolder of the package, there is a `DefaultSurvey` prefab. This is a basic, but fully functional, survey panel. To customize it, you can create a Prefab Variant of this prefab, bringing it into your own project and allowing you to customize images, fonts, and the like. It's recommended you also create variants of the `SurveyQuestion` and `SurveyResponseToggle` prefabs for further visual customization.
+
+Additional scripts can be attached to these prefabs to configure various animation callbacks in the `SurveyPanel` script. These include:
+
+```csharp
+mySurveyPanel.OnLoaded // callback for when survey data is available, prior to displaying the first page
+mySurveyPanel.OpenPageAnim // if set, this coroutine will execute when a new page is being displayed
+mySurveyPanel.ClosePageAnim // if set, this coroutine will execute when a new page is queued up to transition the current page out
+mySurveyPanel.FinishAnim // if set, this coroutine will execute upon the final survey page being submitted
+mySurveyPanel.OnFinished // callback for when the survey is completed and closed
+mySurveyPanel.OnNextButtonState // callback for when the next/finish button is completed
+```
+
+Note: Survey prefabs must make use of `TextMeshPro` text elements to be compatible.
 
 ## Updating
 

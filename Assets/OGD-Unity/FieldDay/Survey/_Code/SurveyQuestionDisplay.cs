@@ -23,7 +23,6 @@ namespace FieldDay
         [Header("Toggles")]
         [SerializeField] private ToggleGroup m_ToggleGroup = null;
         [SerializeField] private LayoutGroup m_ToggleLayout = null;
-        [SerializeField] private Toggle m_TogglePrefab = null;
 
         #endregion // Inspector
 
@@ -77,7 +76,7 @@ namespace FieldDay
 
         #region Responses
 
-        public void LoadQuestion(SurveyQuestion question, int questionIndex) {
+        public void LoadQuestion(SurveyQuestion question, int questionIndex, Toggle responsePrefab) {
             m_CurrentQuestion = question;
 
             string prompt = question.Prompt;
@@ -86,7 +85,7 @@ namespace FieldDay
             }
             m_PromptText.SetText(prompt);
 
-            PrepareResponses(question.Responses.Length);
+            PrepareResponses(question.Responses.Length, responsePrefab);
             for(int i = 0; i < question.Responses.Length; i++) {
                 m_InstantiatedToggles[i].Label.SetText(question.Responses[i]);
             }
@@ -94,12 +93,12 @@ namespace FieldDay
             SurveyPanel.RecursiveLayoutRebuild((RectTransform) m_ToggleLayout.transform);
         }
 
-        private void PrepareResponses(int capacity) {
+        private void PrepareResponses(int capacity, Toggle prefab) {
             m_ToggleGroup.allowSwitchOff = true;
 
             while(m_InstantiatedToggles.Count < capacity) {
                 ToggleCache cache;
-                cache.Toggle = Instantiate(m_TogglePrefab, m_ToggleLayout.transform);
+                cache.Toggle = Instantiate(prefab, m_ToggleLayout.transform);
                 cache.Label = cache.Toggle.GetComponentInChildren<TMP_Text>();
                 cache.Toggle.onValueChanged.AddListener(OnToggleSet);
                 cache.Toggle.group = m_ToggleGroup;
