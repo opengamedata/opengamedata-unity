@@ -45,11 +45,26 @@ namespace FieldDay
         #region Package Management
 
         public void LoadSurveyPackage(SurveyPackage package) {
+            if (package != null && !SurveyPackage.Validate(package)) {
+                Debug.LogError("[OGDSurvey] Survey package contains invalid data");
+                return;
+            }
+
             m_CurrentSurveyPackage = package;
         }
 
         public void LoadSurveyPackageFromString(string packageJSON) {
             m_CurrentSurveyPackage = SurveyPackage.Parse(packageJSON);
+            if (m_CurrentSurveyPackage == null) {
+                Debug.LogError("[OGDSurvey] Survey package was unable to be parsed");
+            } else if (!SurveyPackage.Validate(m_CurrentSurveyPackage)) {
+                Debug.LogError("[OGDSurvey] Survey package contains invalid data");
+                m_CurrentSurveyPackage = null;
+            }
+        }
+
+        public void LoadSurveyPackageFromString(TextAsset packageJSONFile) {
+            LoadSurveyPackageFromString(packageJSONFile.text);
         }
 
         #endregion // Package Management
@@ -70,7 +85,7 @@ namespace FieldDay
                 return false;
             }
 
-            SurveyData survey = Array.Find(m_CurrentSurveyPackage.Surveys, (d) => string.Equals(d.DisplayEventId, displayEventId, StringComparison.Ordinal));
+            SurveyData survey = Array.Find(m_CurrentSurveyPackage.Surveys, (d) => StringComparer.Ordinal.Equals(d.DisplayEventId, displayEventId));
             if (survey == null) {
                 return false;
             }

@@ -249,6 +249,9 @@ namespace FieldDay
 
             KillOngoingRoutine();
 
+            m_ButtonGroup.interactable = false;
+            m_ButtonGroup.alpha = m_ButtonGroupDisabledAlpha;
+
             if (m_CurrentPageIndex >= m_CurrentSurvey.Pages.Length) {
                 FlushData();
                 if (FinishedAnim != null) {
@@ -333,7 +336,9 @@ namespace FieldDay
         }
 
         private IEnumerator NextPageRoutine() {
+            SetInputActive(false);
             yield return ClosePageAnim(this);
+            SetInputActive(true);
             LoadPage(m_CurrentPageIndex);
         }
 

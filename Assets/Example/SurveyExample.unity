@@ -313,7 +313,7 @@ MonoBehaviour:
   appId: aqualab
   appVersion: 0
   clientLogVersion: 1
-  SurveyPrefab: {fileID: 2400622096144153359, guid: 81cf92935e5d17146b89dd315e67020b,
+  SurveyPrefab: {fileID: 6900329484400588778, guid: f8a802c1da773104b9af7e72092352dd,
     type: 3}
   SurveyText: {fileID: 4900000, guid: 5c06e8aaff643224d93a0a343f358d87, type: 3}
 --- !u!81 &2046869698

@@ -8,6 +8,7 @@ Unity package for logging with Field Day's OpenGameData servers.
 2. Add reusable survey (19 May 2021)
 3. Firebase Analytics integration; Support for event constants; performance improvements (21 Sept 2022)
 4. Support for `game_state` and `user_data` parameters; support for sending arbitrary json as `event_data` (13 Jan 2023)
+5. Updated survey support (4 April 2023)
 
 ## Setup
 
@@ -146,15 +147,13 @@ Logging to Firebase for Android or iOS will require an additional Unity package.
 
 ## Survey
 
-A survey asset can be created with the `.survey` file extension, and uses the following tags:
+Survey packages are `.json` files.
 
-- `# defaultAnswers`: required and placed at the top of the file, lists default answers used for all questions
-- `:: question.id`: the id associated with a given question
-- `@answers`: optional, will override `defaultAnswers`
+An example asset is provided [here](https://github.com/opengamedata/opengamedata-unity/blob/main/Assets/Example/survey_example.json).
 
-An example asset is provided [here](https://github.com/opengamedata/opengamedata-unity/blob/main/Assets/FieldDay/Survey/_Assets/sample.survey).
+An instance of `OGDSurvey` must be created in order to properly handle survey display and logging.
 
-To use the `Survey` prefab, create a class which implements the `ISurveyHandler` interface, and call `Survey.Initialize(surveyAsset, surveyHandler)`. 
+(Survey documentation is in progress)
 
 ## Updating
 
