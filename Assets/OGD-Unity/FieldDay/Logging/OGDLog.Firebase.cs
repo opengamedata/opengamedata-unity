@@ -93,6 +93,7 @@ namespace FieldDay {
         #endif // FIREBASE_JS
 
         static private ModuleStatus s_QueuedFirebaseStatus = ModuleStatus.Uninitialized;
+        static private uint s_FirebaseEventSequenceOffset = 0;
 
         #if FIREBASE_UNITY
 
@@ -212,6 +213,7 @@ namespace FieldDay {
         }
 
         private void Firebase_NewEvent(string eventName, uint eventSequenceIndex) {
+            eventSequenceIndex += s_FirebaseEventSequenceOffset;
             #if FIREBASE_JS
             OGDLog_FirebaseNewEvent(eventName, eventSequenceIndex);
             #elif FIREBASE_UNITY

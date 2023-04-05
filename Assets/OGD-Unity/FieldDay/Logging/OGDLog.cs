@@ -34,7 +34,8 @@ namespace FieldDay {
             WritingEventCustomData = 0x04,
             Flushing = 0x08,
             WritingUserData = 0x10,
-            WritingGameState = 0x20
+            WritingGameState = 0x20,
+            Disposed = 0x40
         }
 
         /// <summary>
@@ -180,6 +181,9 @@ namespace FieldDay {
             if (s_Instance == this) {
                 s_Instance = null;
             }
+
+            m_StatusFlags |= StatusFlags.Disposed;
+            m_StatusFlags &= ~StatusFlags.Initialized;
         }
 
         #region Configuration
@@ -248,6 +252,21 @@ namespace FieldDay {
             } else {
                 SetSettings(m_Settings & ~SettingsFlags.Debug);
             }
+        }
+
+        /// <summary>
+        /// Resets the session id to a new session.
+        /// This will also reset the event sequence index.
+        /// </summary>
+        public void ResetSessionId() {
+            m_SessionConsts.SessionId = OGDLogUtils.UUIDint();
+
+            // since we can't manually reset firebase session,
+            // we should at least make sure event sequence indices will not overlap
+            s_FirebaseEventSequenceOffset += m_EventSequence;
+            m_EventSequence = 0;
+            
+            m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts);
         }
 
         /// <summary>
@@ -818,8 +837,8 @@ namespace FieldDay {
         /// Flushes all queued events to the server.
         /// </summary>
         public void Flush() {
-            // if we're already flushing, or we don't have any events to flush, then ignore it
-            if ((m_StatusFlags & StatusFlags.Flushing) != 0 || m_EventStream.Length <= 0) {
+            // if we're already flushing, or we don't have any events to flush, or we've been disposed, then ignore it
+            if ((m_StatusFlags & StatusFlags.Flushing) != 0 || m_EventStream.Length <= 0 || (m_StatusFlags & StatusFlags.Disposed) != 0) {
                 return;
             }
 
