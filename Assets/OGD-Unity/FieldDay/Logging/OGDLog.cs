@@ -1,3 +1,7 @@
+#if UNITY_2021_1_OR_NEWER
+#define HAS_UPLOAD_NATIVE_ARRAY
+#endif // UNITY_2021_OR_NEWER
+
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -5,6 +9,10 @@ using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
+#if HAS_UPLOAD_NATIVE_ARRAY
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
+#endif // HAS_UPLOAD_NATIVE_ARRAY
 
 namespace FieldDay {
     /// <summary>
@@ -26,6 +34,36 @@ namespace FieldDay {
         static private readonly int DataAdditionalByteCount = DataHeaderRawBytes.Length + DataFooterRawBytes.Length;
 
         #endregion // Consts
+
+        /// <summary>
+        /// Memory usage configuration.
+        /// </summary>
+        [Serializable]
+        public struct MemoryConfig {
+            public int EventParameterBufferSize;
+            public int GameStateBufferSize;
+            public int PlayerDataBufferSize;
+
+            public MemoryConfig(int eventParamBufferSize, int additionalBufferSize) {
+                EventParameterBufferSize = eventParamBufferSize;
+                GameStateBufferSize = PlayerDataBufferSize = additionalBufferSize;
+            }
+
+            public MemoryConfig(int eventParamBufferSize, int gameStateBufferSize, int playerDataBufferSize) {
+                EventParameterBufferSize = eventParamBufferSize;
+                GameStateBufferSize = gameStateBufferSize;
+                PlayerDataBufferSize = playerDataBufferSize;
+            }
+
+            /// <summary>
+            /// Default buffer size configuration.
+            /// </summary>
+            static public readonly MemoryConfig Default = new MemoryConfig() {
+                EventParameterBufferSize = EventCustomParamsBufferSize,
+                GameStateBufferSize = AdditionalStateBufferSize,
+                PlayerDataBufferSize = AdditionalStateBufferSize
+            };
+        }
 
         [Flags]
         private enum StatusFlags {
@@ -98,6 +136,9 @@ namespace FieldDay {
         private char[] m_EventStreamEncodingChars = new char[EventStreamBufferInitialSize];
         private byte[] m_EventStreamEncodingBytes = new byte[EventStreamBufferInitialSize];
         private byte[] m_EventStreamEncodingEscaped = new byte[EventStreamBufferInitialSize];
+        #if HAS_UPLOAD_NATIVE_ARRAY
+        private unsafe byte* m_SubmitBufferHead;
+        #endif // HAS_UPLOAD_NATIVE_ARRAY
 
         // static
         static private OGDLog s_Instance;
@@ -105,14 +146,37 @@ namespace FieldDay {
         /// <summary>
         /// Creates a new OpenGameData logger.
         /// </summary>
-        public OGDLog() {
+        public OGDLog()
+            :this(EventCustomParamsBufferSize, AdditionalStateBufferSize, AdditionalStateBufferSize)
+        { }
+
+        /// <summary>
+        /// Creates a new OpenGameData logger, specifying the size of the parameter buffers.
+        /// </summary>
+        /// <param name="eventParamsBufferSize">Size of the event custom parameters buffer, in bytes.</param>
+        /// <param name="gameStateParamsBufferSize">Size of the game_state buffer, in bytes.</param>
+        /// <param name="playerDataParamsBufferSize">Size of the game_state buffer, in bytes.</param>
+        public OGDLog(int eventParamsBufferSize, int gameStateParamsBufferSize, int playerDataParamsBufferSize) {
+            if (eventParamsBufferSize < 1024) {
+                throw new ArgumentException("Event parameter buffer must be at least 1k", "eventParamsBufferSize");
+            }
+            if (gameStateParamsBufferSize < 256) {
+                throw new ArgumentException("Game state parameter buffer must be at least 256b", "gameStateParamsBufferSize");
+            }
+            if (playerDataParamsBufferSize < 256) {
+                throw new ArgumentException("Player data parameter buffer must be at least 256b", "playerDataParamsBufferSize");
+            }
             m_SessionConsts.SessionId = OGDLogUtils.UUIDint();
 
             unsafe {
-                m_DataBufferHead = (char*) Marshal.AllocHGlobal((EventCustomParamsBufferSize + 2 * AdditionalStateBufferSize) * sizeof(char));
-                m_EventCustomParamsBuffer = new FixedCharBuffer("event_data", m_DataBufferHead, EventCustomParamsBufferSize);
-                m_UserDataParamsBuffer = new FixedCharBuffer("player_data", m_EventCustomParamsBuffer.Tail, AdditionalStateBufferSize);
-                m_GameStateParamsBuffer = new FixedCharBuffer("game_state", m_UserDataParamsBuffer.Tail, AdditionalStateBufferSize);
+                m_DataBufferHead = (char*) Marshal.AllocHGlobal((eventParamsBufferSize + gameStateParamsBufferSize + playerDataParamsBufferSize) * sizeof(char));
+                m_EventCustomParamsBuffer = new FixedCharBuffer("event_data", m_DataBufferHead, eventParamsBufferSize);
+                m_UserDataParamsBuffer = new FixedCharBuffer("player_data", m_EventCustomParamsBuffer.Tail, playerDataParamsBufferSize);
+                m_GameStateParamsBuffer = new FixedCharBuffer("game_state", m_UserDataParamsBuffer.Tail, gameStateParamsBufferSize);
+
+                #if HAS_UPLOAD_NATIVE_ARRAY
+                m_SubmitBufferHead = (byte*) Marshal.AllocHGlobal(EventStreamBufferInitialSize);
+                #endif // HAS_UPLOAD_NATIVE_ARRAY
             }
 
             m_Settings = SettingsFlags.Default;
@@ -121,9 +185,26 @@ namespace FieldDay {
         }
 
         /// <summary>
+        /// Creates a new OpenGameData logger, specifying the size of the parameter buffers.
+        /// </summary>
+        public OGDLog(MemoryConfig memConfig)
+            : this(memConfig.EventParameterBufferSize, memConfig.GameStateBufferSize, memConfig.PlayerDataBufferSize)
+            {  }
+
+        /// <summary>
         /// Creates a new OGDLog object.
         /// </summary>
         public OGDLog(string appId, int appVersion) : this() {
+            Initialize(new OGDLogConsts() {
+                AppId = appId,
+                AppVersion = appVersion.ToString()
+            });
+        }
+
+        /// <summary>
+        /// Creates a new OGDLog object.
+        /// </summary>
+        public OGDLog(string appId, int appVersion, MemoryConfig memConfig) : this(memConfig) {
             Initialize(new OGDLogConsts() {
                 AppId = appId,
                 AppVersion = appVersion.ToString()
@@ -143,7 +224,24 @@ namespace FieldDay {
         /// <summary>
         /// Creates a new OGDLog object.
         /// </summary>
+        public OGDLog(string appId, string appVersion, MemoryConfig memConfig) : this(memConfig) {
+            Initialize(new OGDLogConsts() {
+                AppId = appId,
+                AppVersion = appVersion
+            });
+        }
+
+        /// <summary>
+        /// Creates a new OGDLog object.
+        /// </summary>
         public OGDLog(OGDLogConsts constants) : this() {
+            Initialize(constants);
+        }
+
+        /// <summary>
+        /// Creates a new OGDLog object.
+        /// </summary>
+        public OGDLog(OGDLogConsts constants, MemoryConfig memConfig) : this(memConfig) {
             Initialize(constants);
         }
 
@@ -171,6 +269,12 @@ namespace FieldDay {
                     m_GameStateParamsBuffer = default(FixedCharBuffer);
                     m_UserDataParamsBuffer = default(FixedCharBuffer);
                 }
+
+                #if HAS_UPLOAD_NATIVE_ARRAY
+                if (m_SubmitBufferHead != null) {
+                    Marshal.FreeHGlobal((IntPtr) m_SubmitBufferHead);
+                }
+                #endif // HAS_UPLOAD_NATIVE_ARRAY
             }
 
             if (m_FlushDispatcher) {
@@ -357,6 +461,13 @@ namespace FieldDay {
         public EventScope NewEvent(string eventName) {
             BeginEvent(eventName);
             return new EventScope(this);
+        }
+
+        /// <summary>
+        /// Logs an event with no event_data json.
+        /// </summary>
+        public void Log(string eventName) {
+            Log(eventName, "{}");
         }
 
         /// <summary>
@@ -870,16 +981,32 @@ namespace FieldDay {
                 dataByteLength = OGDLogUtils.EscapePostData(m_EventStreamEncodingBytes, 0, dataByteLength, m_EventStreamEncodingEscaped, 0); // encode bytes to URI-escaped bytes
 
                 // finally generate the actual post bytes
+                UploadHandlerRaw uploadHandler;
+                #if HAS_UPLOAD_NATIVE_ARRAY
+                unsafe {
+                    int totalUploadByteLength = dataByteLength + DataAdditionalByteCount;
+                    NativeArray<byte> encodedData = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>(m_SubmitBufferHead, totalUploadByteLength, Allocator.None);
+                    OGDLogUtils.CopyArray(DataHeaderRawBytes, 0, DataHeaderRawByteSize, m_SubmitBufferHead, 0, totalUploadByteLength); // copy header "data="
+                    OGDLogUtils.CopyArray(DataFooterRawBytes, 0, DataFooterRawBytes.Length, m_SubmitBufferHead, DataHeaderRawByteSize + dataByteLength, totalUploadByteLength); // copy footer "
+                    OGDLogUtils.CopyArray(m_EventStreamEncodingEscaped, 0, dataByteLength, m_SubmitBufferHead, DataHeaderRawByteSize, totalUploadByteLength); // copy escaped data
+                    #if ENABLE_UNITY_COLLECTIONS_CHECKS
+                    NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref encodedData, AtomicSafetyHandle.GetTempUnsafePtrSliceHandle());
+                    #endif
+                    uploadHandler = new UploadHandlerRaw(encodedData, false);
+                }
+                #else
                 byte[] encodedData = new byte[dataByteLength + DataAdditionalByteCount];
                 OGDLogUtils.CopyArray(DataHeaderRawBytes, 0, DataHeaderRawByteSize, encodedData, 0); // copy header "data="
                 OGDLogUtils.CopyArray(DataFooterRawBytes, 0, DataFooterRawBytes.Length, encodedData, DataHeaderRawByteSize + dataByteLength); // copy footer "
                 OGDLogUtils.CopyArray(m_EventStreamEncodingEscaped, 0, dataByteLength, encodedData, DataHeaderRawByteSize); // copy escaped data
+                uploadHandler = new UploadHandlerRaw(encodedData);
+                #endif // HAS_UPLOAD_NATIVE_ARRAY
 
                 UnityWebRequest request = new UnityWebRequest(m_Endpoint, UnityWebRequest.kHttpVerbPOST);
                 if ((m_Settings & SettingsFlags.Debug) != 0) {
                     request.downloadHandler = new DownloadHandlerBuffer(); // we only need a download handler if we're in debug mode
                 }
-                request.uploadHandler = new UploadHandlerRaw(encodedData);
+                request.uploadHandler = uploadHandler;
                 request.uploadHandler.contentType = "application/x-www-form-urlencoded";
 
                 UnityWebRequestAsyncOperation operation = request.SendWebRequest();
@@ -918,9 +1045,19 @@ namespace FieldDay {
             }
 
             int newBufferSize = (int) OGDLogUtils.AlignUp((uint) bufferSize, 512u);
+            if ((m_Settings & SettingsFlags.Debug) != 0) {
+                UnityEngine.Debug.LogFormat("[OGDLog] Resizing internal stream encoding and upload buffers to {0} to accommodate size {1}", newBufferSize, bufferSize);
+            }
+
             Array.Resize(ref m_EventStreamEncodingChars, newBufferSize);
             Array.Resize(ref m_EventStreamEncodingBytes, newBufferSize);
             Array.Resize(ref m_EventStreamEncodingEscaped, newBufferSize);
+
+            #if HAS_UPLOAD_NATIVE_ARRAY
+            unsafe {
+                m_SubmitBufferHead = (byte*) Marshal.ReAllocHGlobal((IntPtr) m_SubmitBufferHead, (IntPtr) newBufferSize);
+            }
+            #endif // HAS_UPLOAD_NATIVE_ARRAY
         }
 
         private class FlushDispatcher : MonoBehaviour {
@@ -1024,6 +1161,154 @@ namespace FieldDay {
             buffer.Write("\":");
             buffer.Write(parameterValue, precision);
             buffer.Write(',');
+        }
+
+        // arrays
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, string[] parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":[");
+            for(int i = 0; i < parameterValue.Length; i++) {
+                buffer.Write('"');
+                OGDLogUtils.EscapeJSON(ref buffer, parameterValue[i]);
+                buffer.Write("\",");
+            }
+            buffer.TrimEnd(',');
+            buffer.Write("],");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, IList<string> parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":[");
+            for(int i = 0; i < parameterValue.Count; i++) {
+                buffer.Write('"');
+                OGDLogUtils.EscapeJSON(ref buffer, parameterValue[i]);
+                buffer.Write("\",");
+            }
+            buffer.TrimEnd(',');
+            buffer.Write("],");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, bool[] parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":[");
+            for(int i = 0; i < parameterValue.Length; i++) {
+                buffer.Write(parameterValue[i]);
+                buffer.Write(',');
+            }
+            buffer.TrimEnd(',');
+            buffer.Write("],");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, IList<bool> parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":[");
+            for(int i = 0; i < parameterValue.Count; i++) {
+                buffer.Write(parameterValue[i]);
+                buffer.Write(',');
+            }
+            buffer.TrimEnd(',');
+            buffer.Write("],");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, int[] parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":[");
+            for(int i = 0; i < parameterValue.Length; i++) {
+                buffer.Write(parameterValue[i]);
+                buffer.Write(',');
+            }
+            buffer.TrimEnd(',');
+            buffer.Write("],");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, IList<int> parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":[");
+            for(int i = 0; i < parameterValue.Count; i++) {
+                buffer.Write(parameterValue[i]);
+                buffer.Write(',');
+            }
+            buffer.TrimEnd(',');
+            buffer.Write("],");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, long[] parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":[");
+            for(int i = 0; i < parameterValue.Length; i++) {
+                buffer.Write(parameterValue[i]);
+                buffer.Write(',');
+            }
+            buffer.TrimEnd(',');
+            buffer.Write("],");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, IList<long> parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":[");
+            for(int i = 0; i < parameterValue.Count; i++) {
+                buffer.Write(parameterValue[i]);
+                buffer.Write(',');
+            }
+            buffer.TrimEnd(',');
+            buffer.Write("],");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, float[] parameterValue, int precision) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":[");
+            for(int i = 0; i < parameterValue.Length; i++) {
+                buffer.Write(parameterValue[i], precision);
+                buffer.Write(',');
+            }
+            buffer.TrimEnd(',');
+            buffer.Write("],");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, IList<float> parameterValue, int precision) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":[");
+            for(int i = 0; i < parameterValue.Count; i++) {
+                buffer.Write(parameterValue[i], precision);
+                buffer.Write(',');
+            }
+            buffer.TrimEnd(',');
+            buffer.Write("],");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, double[] parameterValue, int precision) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":[");
+            for(int i = 0; i < parameterValue.Length; i++) {
+                buffer.Write(parameterValue[i], precision);
+                buffer.Write(',');
+            }
+            buffer.TrimEnd(',');
+            buffer.Write("],");
+        }
+
+        static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, IList<double> parameterValue, int precision) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":[");
+            for(int i = 0; i < parameterValue.Count; i++) {
+                buffer.Write(parameterValue[i], precision);
+                buffer.Write(',');
+            }
+            buffer.TrimEnd(',');
+            buffer.Write("],");
         }
 
         // EVENT STREAM

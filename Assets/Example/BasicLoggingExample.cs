@@ -6,13 +6,14 @@ public class BasicLoggingExample : MonoBehaviour {
     public string appId;
     public int appVersion;
     public int clientLogVersion;
+    public bool debugMode = true;
 
     private OGDLog m_Logger;
 
     private IEnumerator Start() {
         m_Logger = new OGDLog(appId, appVersion);
         m_Logger.SetUserId("default");
-        m_Logger.SetDebug(true);
+        m_Logger.SetDebug(debugMode);
 
         while(!m_Logger.IsReady())
             yield return null;

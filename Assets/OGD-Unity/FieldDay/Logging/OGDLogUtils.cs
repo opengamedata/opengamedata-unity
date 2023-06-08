@@ -665,6 +665,16 @@ namespace FieldDay {
             int size = sizeof(T);
             Buffer.BlockCopy(src, srcOffset * size, dest, destOffset * size, srcLength * size);
         }
+
+        /// <summary>
+        /// Copies buffer data from one buffer to another.
+        /// </summary>
+        static internal unsafe void CopyArray<T>(T[] src, int srcOffset, int srcLength, T* dest, int destOffset, int destLength) where T : unmanaged {
+            int size = sizeof(T);
+            fixed(T* srcPtr = src) {
+                Buffer.MemoryCopy(srcPtr + srcOffset, dest + destOffset, (destLength - destOffset) * size, srcLength * size);
+            }
+        }
     }
 
     /// <summary>
