@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
+
 #if HAS_UPLOAD_NATIVE_ARRAY
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -83,6 +84,7 @@ namespace FieldDay {
         public enum SettingsFlags {
             Debug = 0x01,
             Base64Encode = 0x02,
+            SkipOGDUpload = 0x04,
 
             Default = Base64Encode
         }
@@ -348,6 +350,30 @@ namespace FieldDay {
         }
 
         /// <summary>
+        /// Adds the given settings flags for the logger.
+        /// This dictates debug output and base64 encoding.
+        /// </summary>
+        public void AddSettings(SettingsFlags settings) {
+            m_Settings |= settings;
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_ConfigureSettings(m_Settings);
+            }
+        }
+
+        /// <summary>
+        /// Removes the given settings flags for the logger.
+        /// This dictates debug output and base64 encoding.
+        /// </summary>
+        public void RemoveSettings(SettingsFlags settings) {
+            m_Settings &= ~settings;
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_ConfigureSettings(m_Settings);
+            }
+        }
+
+        /// <summary>
         /// Sets the debug settings flag.
         /// </summary>
         public void SetDebug(bool debug) {
@@ -371,6 +397,13 @@ namespace FieldDay {
             m_EventSequence = 0;
             
             m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts);
+        }
+
+        /// <summary>
+        /// Returns the current session id.
+        /// </summary>
+        public long GetSessionId() {
+            return m_SessionConsts.SessionId;
         }
 
         /// <summary>
@@ -954,6 +987,17 @@ namespace FieldDay {
             }
 
             FinishEventData();
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || DEBUG || DEVELOPMENT || OGD_ALLOW_SKIP
+            if ((m_Settings & SettingsFlags.SkipOGDUpload) != 0) {
+                if ((m_Settings & SettingsFlags.Debug) != 0) {
+                    UnityEngine.Debug.LogFormat("[OGDLog] Skipping server upload");
+                }
+                m_SubmittedStreamLength = 0;
+                m_EventStream.Clear();
+                return;
+            }
+#endif // UNITY_EDITOR || DEVELOPMENT_BUILD || DEBUG || DEVELOPMENT || OGD_ALLOW_SKIP
 
             m_StatusFlags |= StatusFlags.Flushing;
             m_SubmittedStreamLength = m_EventStream.Length;

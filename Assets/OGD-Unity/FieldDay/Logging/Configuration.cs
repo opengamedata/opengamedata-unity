@@ -1,5 +1,5 @@
-// Comment out the following line if we're no longer using the testing url
-// #define USE_TESTING_ENDPOINT
+// #define OGD_TESTING_ENDPOINT
+// #define OGD_STAGING_ENDPOINT
 
 using System;
 
@@ -38,12 +38,14 @@ namespace FieldDay {
         /// <summary>
         /// Endpoint base.
         /// </summary>
-        public const string LogEndpoint = 
-        #if USE_TESTING_ENDPOINT
+        public const string LogEndpoint =
+#if OGD_TESTING_ENDPOINT
             "https://ogdlogger.fielddaylab.wisc.edu/logger-testing/log.php";
-        #else
+#elif OGD_STAGING_ENDPOINT
+            "https://ogd-staging.fielddaylab.wisc.edu/opengamedata-logger/master/log.php";
+#else
             "https://ogdlogger.fielddaylab.wisc.edu/logger/log.php";
-        #endif // USE_TESTING_ENDPOINT
+#endif // OGD_TESTING_ENDPOINT
     }
 
     /// <summary>

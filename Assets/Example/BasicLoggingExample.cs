@@ -18,6 +18,8 @@ public class BasicLoggingExample : MonoBehaviour {
         while(!m_Logger.IsReady())
             yield return null;
 
+        Debug.LogFormat("current session id: {0}", m_Logger.GetSessionId().ToString("X16"));
+
         using(var g = m_Logger.OpenGameState()) {
             g.Param("platform", Application.platform.ToString());
         }
