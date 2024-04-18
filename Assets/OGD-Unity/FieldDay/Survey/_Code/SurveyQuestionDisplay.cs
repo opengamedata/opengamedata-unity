@@ -31,6 +31,7 @@ namespace FieldDay
         [NonSerialized] private SurveyQuestion m_CurrentQuestion;
         [NonSerialized] private List<ToggleCache> m_InstantiatedToggles = new List<ToggleCache>(8);
         [NonSerialized] private int m_TogglesInUse = 0;
+        [NonSerialized] private bool m_Populating;
 
         /// <summary>
         /// Retrieves the current response.
@@ -66,6 +67,10 @@ namespace FieldDay
         }
 
         private void OnToggleSet(bool state) {
+            if (m_Populating) {
+                return;
+            }
+
             // NOTE: will need to be modified for questions with multiple allowed responses
             m_ToggleGroup.allowSwitchOff = false;
             
@@ -94,6 +99,7 @@ namespace FieldDay
         }
 
         private void PrepareResponses(int capacity, Toggle prefab) {
+            m_Populating = true;
             m_ToggleGroup.allowSwitchOff = true;
 
             while(m_InstantiatedToggles.Count < capacity) {
@@ -107,10 +113,15 @@ namespace FieldDay
 
             for(int i = 0; i < m_InstantiatedToggles.Count; i++) {
                 m_InstantiatedToggles[i].Toggle.gameObject.SetActive(i < capacity);
+#if UNITY_2019_1_OR_NEWER                
                 m_InstantiatedToggles[i].Toggle.SetIsOnWithoutNotify(false);
+#else
+                m_InstantiatedToggles[i].Toggle.isOn = false;
+#endif
             }
 
             m_TogglesInUse = capacity;
+            m_Populating = false;
         }
 
         #endregion // Responses

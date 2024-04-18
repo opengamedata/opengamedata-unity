@@ -1,8 +1,8 @@
 {
     "name": "com.fieldday.opengamedata-unity",
     "displayName": "opengamedata-unity",
-    "version": "1.0.3",
-    "unity": "2019.3",
+    "version": "1.0.4",
+    "unity": "2018.4",
     "dependencies": {
     }
 }
