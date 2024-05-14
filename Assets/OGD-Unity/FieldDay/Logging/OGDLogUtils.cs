@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 
@@ -371,6 +372,8 @@ namespace OGD {
                 }
             }
         }
+
+        private const int EscapeInlineStackBufferLimit = 4096;
     
         /// <summary>
         /// Escapes the given buffer to JSON over itself.
@@ -378,11 +381,23 @@ namespace OGD {
         static internal void EscapeJSONInline(ref FixedCharBuffer buffer) {
             unsafe {
                 int length = buffer.Length;
-                char* copy = stackalloc char[length];
-                FixedCharBuffer temp = new FixedCharBuffer("temp", copy, length);
-                temp.Write(buffer.Base, buffer.Length);
-                buffer.Clear();
-                EscapeJSON(ref buffer, temp);
+                if (length > EscapeInlineStackBufferLimit) {
+                    char* copy = (char*) Marshal.AllocHGlobal(length * sizeof(char));
+                    try {
+                        FixedCharBuffer temp = new FixedCharBuffer("temp", copy, length);
+                        temp.Write(buffer.Base, buffer.Length);
+                        buffer.Clear();
+                        EscapeJSON(ref buffer, temp);
+                    } finally {
+                        Marshal.FreeHGlobal((IntPtr) copy);
+                    }
+                } else {
+                    char* copy = stackalloc char[length];
+                    FixedCharBuffer temp = new FixedCharBuffer("temp", copy, length);
+                    temp.Write(buffer.Base, buffer.Length);
+                    buffer.Clear();
+                    EscapeJSON(ref buffer, temp);
+                }
             }
         }
 
@@ -729,8 +744,9 @@ namespace OGD {
             }
 
             char* head = m_WriteHead;
+            int writeLength = length;
             int idx = 0;
-            while(length-- > 0) {
+            while(writeLength-- > 0) {
                 *head++ = data[idx++];
             }
 

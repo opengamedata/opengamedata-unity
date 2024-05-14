@@ -1,6 +1,7 @@
 using UnityEngine;
 using OGD;
 using System.Collections;
+using System.Text;
 
 public class BasicLoggingExample : MonoBehaviour {
     public string appId;
@@ -26,7 +27,11 @@ public class BasicLoggingExample : MonoBehaviour {
 
         m_Logger.GameState("{\"platform\":16}");
 
-        using(var u = m_Logger.OpenUserData()) {
+        var sb = new StringBuilder();
+        sb.Append("{\"platform\":16}");
+        m_Logger.GameState(sb);
+
+        using (var u = m_Logger.OpenUserData()) {
             u.Param("high_score", Random.Range(25, 68));
         }
     }
