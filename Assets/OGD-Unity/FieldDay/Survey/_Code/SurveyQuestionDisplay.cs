@@ -4,7 +4,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace FieldDay
+namespace OGD
 {
     public class SurveyQuestionDisplay : MonoBehaviour
     {

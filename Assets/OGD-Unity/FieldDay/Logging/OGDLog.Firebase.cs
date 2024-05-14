@@ -30,7 +30,7 @@ using Firebase.Analytics;
 using AOT;
 #endif // UNITY_WEBGL
 
-namespace FieldDay {
+namespace OGD {
     public sealed partial class OGDLog {
         #if FIREBASE_JS || FIREBASE_EDITOR_JS
 
@@ -71,6 +71,9 @@ namespace FieldDay {
 
         [DllImport("__Internal")]
         static private extern bool OGDLog_FirebaseSubmitEvent();
+
+        [DllImport("__Internal")]
+        static private extern bool OGDLog_FirebaseClearEvent();
 
         [DllImport("__Internal")]
         static private extern void OGDLog_FirebaseResetGameState();
@@ -255,6 +258,17 @@ namespace FieldDay {
             #elif FIREBASE_UNITY
             if (m_CachedFirebaseEventId != null) {
                 FirebaseAnalytics.LogEvent(m_CachedFirebaseEventId, BuildParameterArray(m_CachedFirebaseEventParameters, m_CachedFirebaseGameStateParameters, m_CachedFirebaseUserDataParameters));
+                m_CachedFirebaseEventId = null;
+                ClearParameterList(m_CachedFirebaseEventParameters);
+            }
+            #endif // FIREBASE_UNITY
+        }
+
+        private void Firebase_ClearEvent() {
+            #if FIREBASE_JS
+            OGDLog_FirebaseClearEvent();
+            #elif FIREBASE_UNITY
+            if (m_CachedFirebaseEventId != null) {
                 m_CachedFirebaseEventId = null;
                 ClearParameterList(m_CachedFirebaseEventParameters);
             }

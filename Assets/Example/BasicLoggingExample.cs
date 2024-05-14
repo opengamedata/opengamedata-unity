@@ -1,5 +1,5 @@
 using UnityEngine;
-using FieldDay;
+using OGD;
 using System.Collections;
 
 public class BasicLoggingExample : MonoBehaviour {
@@ -20,9 +20,11 @@ public class BasicLoggingExample : MonoBehaviour {
 
         Debug.LogFormat("current session id: {0}", m_Logger.GetSessionId().ToString("X16"));
 
-        using(var g = m_Logger.OpenGameState()) {
-            g.Param("platform", Application.platform.ToString());
-        }
+        //using(var g = m_Logger.OpenGameState()) {
+        //    g.Param("platform", Application.platform.ToString());
+        //}
+
+        m_Logger.GameState("{\"platform\":16}");
 
         using(var u = m_Logger.OpenUserData()) {
             u.Param("high_score", Random.Range(25, 68));

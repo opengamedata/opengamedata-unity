@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using UnityEngine;
 
-namespace FieldDay {
+namespace OGD {
     static public class OGDLogUtils {
         #region Consts
 
@@ -712,6 +712,26 @@ namespace FieldDay {
 
             fixed(char* dataPtr = data) {
                 Buffer.MemoryCopy(dataPtr, m_WriteHead, m_Remaining * sizeof(char), length * sizeof(char));
+            }
+
+            m_WriteHead += length;
+            m_Remaining -= length;
+        }
+
+        public void Write(StringBuilder data) {
+            if (data == null || data.Length <= 0) {
+                return;
+            }
+
+            int length = data.Length;
+            if (length > m_Remaining) {
+                throw GetWriteException(length);
+            }
+
+            char* head = m_WriteHead;
+            int idx = 0;
+            while(length-- > 0) {
+                *head++ = data[idx++];
             }
 
             m_WriteHead += length;

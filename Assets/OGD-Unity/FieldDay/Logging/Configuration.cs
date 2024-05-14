@@ -3,7 +3,7 @@
 
 using System;
 
-namespace FieldDay {
+namespace OGD {
 
     /// <summary>
     /// OpenGameData logging constants.

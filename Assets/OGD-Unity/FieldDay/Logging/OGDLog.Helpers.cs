@@ -6,7 +6,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace FieldDay {
+namespace OGD {
     /// <summary>
     /// Event logging helper object.
     /// This automatically submits the current event

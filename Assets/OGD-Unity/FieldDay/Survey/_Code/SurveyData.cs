@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace FieldDay
+namespace OGD
 {
     /// <summary>
     /// Package of survey data.

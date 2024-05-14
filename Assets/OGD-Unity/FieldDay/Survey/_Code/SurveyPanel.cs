@@ -15,7 +15,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace FieldDay
+namespace OGD
 {
     /// <summary>
     /// Survey display and response panel.

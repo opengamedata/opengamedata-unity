@@ -7,7 +7,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace FieldDay
+namespace OGD
 {
     /// <summary>
     /// Survey manager.

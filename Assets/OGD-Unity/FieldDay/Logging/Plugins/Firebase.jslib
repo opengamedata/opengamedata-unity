@@ -292,6 +292,16 @@ var OGDLogFirebaseLib = {
         }
     },
 
+	/**
+     * Clears the current event instance.
+     */
+    OGDLog_FirebaseClearEvent: function () {
+        if (FirebaseCache.currentEventId) {
+            FirebaseCache.currentEventId = null;
+            FirebaseCache.currentEventInstance = {};
+        }
+    },
+
     /**
      * Resets the current game_state data.
      */

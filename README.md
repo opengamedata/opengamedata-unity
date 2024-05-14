@@ -109,6 +109,12 @@ using(GameStateScope scope = m_Logger.OpenGameState()) {
 }
 ```
 
+Finally, there is a `GameState` method to set the `game_state` to an arbitrary JSON-formatted string.
+
+```csharp
+m_Logger.GameState("{\"param1\":502}");
+```
+
 ### User Data
 
 The shared `user_data` parameter behaves similarly to the `game_state` parameter, with
@@ -119,15 +125,16 @@ m_Logger.OpenUserData()
 m_Logger.BeginUserData()
 m_Logger.UserDataParam(...)
 m_Logger.SubmitUserData()
+m_Logger.UserData(...)
 ```
 
 ### Limitations
 
-Valid parameter types in OpenGameData are integer types, floating point values, strings,
+Valid parameter types in OpenGameData are integer types, floating point values, bools, strings,
 and `StringBuilder` instances.
 
-The maximum size of the event parameters for a single event is 4096 characters.
-The maximum size for `game_state` and `user_data` is 2048 characters each.
+The default maximum size of the event parameters for a single event is 4096 characters.
+The default maximum size for `game_state` and `user_data` is 2048 characters each.
 
 ### Firebase Analytics
 
