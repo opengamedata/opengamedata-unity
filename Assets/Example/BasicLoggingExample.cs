@@ -21,6 +21,8 @@ public class BasicLoggingExample : MonoBehaviour {
 
         Debug.LogFormat("current session id: {0}", m_Logger.GetSessionId().ToString("X16"));
 
+        //m_Logger.ConfigureMirroring("// REDACTED //");
+
         //using(var g = m_Logger.OpenGameState()) {
         //    g.Param("platform", Application.platform.ToString());
         //}
@@ -48,6 +50,10 @@ public class BasicLoggingExample : MonoBehaviour {
             }
         } else if (Input.GetMouseButtonDown(1)) {
             m_Logger.Log("test_structured", "{\"something\":[4,5,6,7,8,15],\"nesting\":{\"x\":15}}");
+        }
+
+        if (Input.GetKeyDown(KeyCode.R)) {
+            m_Logger.AttemptReconnect();
         }
     }
 }

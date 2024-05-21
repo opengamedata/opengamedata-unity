@@ -110,12 +110,12 @@ var OGDLogFirebaseLib = {
         FirebaseCache.analyticsState = "loading";
 
         var appConfig = {
-            apiKey: Pointer_stringify(apiKey),
-            projectId: Pointer_stringify(projectId),
-            storageBucket: Pointer_stringify(storageBucket),
-            messagingSenderId: Pointer_stringify(messagingSenderId),
-            appId: Pointer_stringify(appId),
-            measurementId: Pointer_stringify(measurementId)
+            apiKey: UTF8ToString(apiKey),
+            projectId: UTF8ToString(projectId),
+            storageBucket: UTF8ToString(storageBucket),
+            messagingSenderId: UTF8ToString(messagingSenderId),
+            appId: UTF8ToString(appId),
+            measurementId: UTF8ToString(measurementId)
         };
 
         // ensure these get loaded in sequence
@@ -200,7 +200,7 @@ var OGDLogFirebaseLib = {
      */
     OGDLog_FirebaseSetSessionConsts: function (userId) {
         var sessionConsts = FirebaseCache.sessionConsts;
-        sessionConsts.user_id = Pointer_stringify(userId);
+        sessionConsts.user_id = UTF8ToString(userId);
         FirebaseCache.SyncSettings();
     },
 
@@ -212,8 +212,8 @@ var OGDLogFirebaseLib = {
      */
     OGDLog_FirebaseSetAppConsts: function (appVersion, appFlavor, logVersion) {
         var appConsts = FirebaseCache.appConsts;
-        appConsts.app_version = Pointer_stringify(appVersion);
-        appConsts.app_flavor = Pointer_stringify(appFlavor);
+        appConsts.app_version = UTF8ToString(appVersion);
+        appConsts.app_flavor = UTF8ToString(appFlavor);
         appConsts.log_version = logVersion;
         FirebaseCache.SyncSettings();
     },
@@ -224,7 +224,7 @@ var OGDLogFirebaseLib = {
      * @param {string} value 
      */
     OGDLog_FirebaseConfigureLegacyOption: function (optionId, value) {
-        FirebaseCache.legacyConfig[Pointer_stringify(optionId)] = value;
+        FirebaseCache.legacyConfig[UTF8ToString(optionId)] = value;
         FirebaseCache.SyncSettings();
     },
 
@@ -234,7 +234,7 @@ var OGDLogFirebaseLib = {
      * @param {number} sequenceIndex 
      */
     OGDLog_FirebaseNewEvent: function (eventName, sequenceIndex) {
-        FirebaseCache.currentEventId = Pointer_stringify(eventName);
+        FirebaseCache.currentEventId = UTF8ToString(eventName);
         FirebaseCache.currentEventInstance = {
             event_sequence_index: sequenceIndex,
         };
@@ -251,7 +251,7 @@ var OGDLogFirebaseLib = {
      * @param {number} numValue 
      */
     OGDLog_FirebaseEventNumberParam: function (paramName, numValue) {
-        FirebaseCache.currentEventInstance[Pointer_stringify(paramName)] = numValue;
+        FirebaseCache.currentEventInstance[UTF8ToString(paramName)] = numValue;
     },
 
     /**
@@ -260,7 +260,7 @@ var OGDLogFirebaseLib = {
      * @param {string} stringVal 
      */
     OGDLog_FirebaseEventStringParam: function (paramName, stringVal) {
-        FirebaseCache.currentEventInstance[Pointer_stringify(paramName)] = Pointer_stringify(stringVal);
+        FirebaseCache.currentEventInstance[UTF8ToString(paramName)] = UTF8ToString(stringVal);
     },
 
     /**
@@ -269,7 +269,7 @@ var OGDLogFirebaseLib = {
      * @param {number} numValue 
      */
     OGDLog_FirebaseDefaultNumberParam: function (paramName, numValue) {
-        FirebaseCache.defaultParameters[Pointer_stringify(paramName)] = numValue;
+        FirebaseCache.defaultParameters[UTF8ToString(paramName)] = numValue;
     },
 
     /**
@@ -278,7 +278,7 @@ var OGDLogFirebaseLib = {
      * @param {string} stringVal 
      */
     OGDLog_FirebaseDefaultStringParam: function (paramName, stringVal) {
-        FirebaseCache.defaultParameters[Pointer_stringify(paramName)] = Pointer_stringify(stringVal);
+        FirebaseCache.defaultParameters[UTF8ToString(paramName)] = UTF8ToString(stringVal);
     },
 
     /**
@@ -315,7 +315,7 @@ var OGDLogFirebaseLib = {
      * @param {number} numValue 
      */
     OGDLog_FirebaseGameStateNumberParam: function (paramName, numValue) {
-        FirebaseCache.gameStateInstance[Pointer_stringify(paramName)] = numValue;
+        FirebaseCache.gameStateInstance[UTF8ToString(paramName)] = numValue;
     },
 
     /**
@@ -324,7 +324,7 @@ var OGDLogFirebaseLib = {
      * @param {string} stringVal 
      */
     OGDLog_FirebaseGameStateStringParam: function (paramName, stringVal) {
-        FirebaseCache.gameStateInstance[Pointer_stringify(paramName)] = Pointer_stringify(stringVal);
+        FirebaseCache.gameStateInstance[UTF8ToString(paramName)] = UTF8ToString(stringVal);
     },
 
     /**
@@ -340,7 +340,7 @@ var OGDLogFirebaseLib = {
      * @param {number} numValue 
      */
     OGDLog_FirebaseUserDataNumberParam: function (paramName, numValue) {
-        FirebaseCache.userDataInstance[Pointer_stringify(paramName)] = numValue;
+        FirebaseCache.userDataInstance[UTF8ToString(paramName)] = numValue;
     },
 
     /**
@@ -349,7 +349,7 @@ var OGDLogFirebaseLib = {
      * @param {string} stringVal 
      */
     OGDLog_FirebaseUserDataStringParam: function (paramName, stringVal) {
-        FirebaseCache.userDataInstance[Pointer_stringify(paramName)] = Pointer_stringify(stringVal);
+        FirebaseCache.userDataInstance[UTF8ToString(paramName)] = UTF8ToString(stringVal);
     },
 }
 
@@ -358,7 +358,7 @@ var OGDLogFirebaseLib = {
 //  * @param ptr 
 //  * @return {string}
 //  */
-// function Pointer_stringify(ptr);
+// function UTF8ToString(ptr);
 
 autoAddDeps(OGDLogFirebaseLib, '$FirebaseCache');
 mergeInto(LibraryManager.library, OGDLogFirebaseLib);

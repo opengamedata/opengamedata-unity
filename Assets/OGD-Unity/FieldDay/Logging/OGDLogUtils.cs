@@ -690,6 +690,37 @@ namespace OGD {
                 Buffer.MemoryCopy(srcPtr + srcOffset, dest + destOffset, (destLength - destOffset) * size, srcLength * size);
             }
         }
+
+        /// <summary>
+        /// Scope object that temporarily sets the stack trace level for a given log type.
+        /// </summary>
+        internal struct StackTraceLevelScope : IDisposable {
+            private UnityEngine.LogType m_Type;
+            private UnityEngine.StackTraceLogType m_RestoreLevel;
+            private bool m_Disposed;
+
+            public StackTraceLevelScope(UnityEngine.LogType inType, UnityEngine.StackTraceLogType inDesiredLevel) {
+                m_Type = inType;
+                m_RestoreLevel = UnityEngine.Application.GetStackTraceLogType(inType);
+                UnityEngine.Application.SetStackTraceLogType(inType, inDesiredLevel);
+                m_Disposed = false;
+            }
+
+            public void Dispose() {
+                if (!m_Disposed) {
+                    m_Disposed = true;
+                    UnityEngine.Application.SetStackTraceLogType(m_Type, m_RestoreLevel);
+                }
+            }
+        }
+
+        static internal StackTraceLevelScope DisableLogStackTrace() {
+            return new StackTraceLevelScope(UnityEngine.LogType.Log, UnityEngine.StackTraceLogType.None);
+        }
+
+        static internal StackTraceLevelScope DisableWarningStackTrace() {
+            return new StackTraceLevelScope(UnityEngine.LogType.Warning, UnityEngine.StackTraceLogType.None);
+        }
     }
 
     /// <summary>

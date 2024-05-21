@@ -30,12 +30,14 @@ namespace OGD {
     public sealed partial class OGDLog : IDisposable {
         #region Consts
 
-        private const int EventStreamMinimumSize = 4096;
+        private const int EventStreamMinimumSize = 32768;
         private const int EventStreamBufferPadding = 512;
-        private const int EventStreamBufferInitialSize = 4096;
+        private const int EventStreamBufferInitialSize = 32768;
         private const int EventCustomParamsBufferSize = 4096;
         private const int AdditionalStateBufferSize = 2048;
         private const float MaximumFlushDelay = 3f;
+        private const int EndpointFailureCountCap = 10;
+        private const int EndpointFailureCountReset = 6;
 
         static private readonly byte[] DataHeaderRawBytes = Encoding.UTF8.GetBytes("data=\"");
         static private readonly byte[] DataFooterRawBytes = Encoding.UTF8.GetBytes("\"");
@@ -79,14 +81,35 @@ namespace OGD {
         /// </summary>
         [Serializable]
         public struct SchedulingConfig {
-            public float FlushDebounce;
+            /// <summary>
+            /// Delay, in seconds, between an event being logged
+            /// and the event stream being flushed to the endpoints.
+            /// </summary>
+            public float FlushDelay;
+
+            /// <summary>
+            /// After an upload fails, the base amount of delay, in seconds, between
+            /// the failure and retrying the upload.
+            /// </summary>
             public float FlushFailureDelay;
+
+            /// <summary>
+            /// Additional delay, in seconds, added to FlushFailureDelay per failed
+            /// upload for an endpoint.
+            /// </summary>
             public float RepeatedFailureDelay;
 
+            /// <summary>
+            /// Delay, in seconds, before an endpoint that has experienced 10
+            /// consecutive failures will attempt to reconnect.
+            /// </summary>
+            public float ReconnectDelay;
+
             static public readonly SchedulingConfig Default = new SchedulingConfig() {
-                FlushDebounce = 0.2f,
+                FlushDelay = 0.2f,
                 FlushFailureDelay = 0.4f,
-                RepeatedFailureDelay = 0.05f
+                RepeatedFailureDelay = 0.2f,
+                ReconnectDelay = 10
             };
         }
 
@@ -117,11 +140,19 @@ namespace OGD {
         /// <summary>
         /// Identifiers for logging modules.
         /// </summary>
-        public enum ModuleId {
+        private enum ModuleId {
             OpenGameData = 0,
             Firebase = 1,
 
             COUNT
+        }
+
+        /// <summary>
+        /// Specifies an endpoint configuration.
+        /// </summary>
+        public enum EndpointType {
+            Main,
+            Mirror
         }
 
         /// <summary>
@@ -134,6 +165,30 @@ namespace OGD {
             Error
         }
 
+        private struct StreamState {
+            public int BaseOffset;
+            public int SentOffset;
+            public int SentLength;
+
+            public int FailureCounter;
+            public bool Active;
+
+            public void CleanActivate() {
+                this = default;
+                Active = true;
+            }
+
+            public bool ReadyForSend() {
+                return Active && SentLength <= 0;
+            }
+        }
+
+        private enum UploadResultType {
+            Success,
+            Failure,
+            CriticalFailure
+        }
+
         // constants
         private OGDLogConsts m_OGDConsts;
         private FirebaseConsts m_FirebaseConsts;
@@ -144,20 +199,22 @@ namespace OGD {
         // state
         private Uri m_Endpoint;
         private Uri m_MirrorEndpoint;
+        // TODO: allow for more than one mirrored endpoint?
         private uint m_EventSequence;
         private StatusFlags m_StatusFlags;
         private SettingsFlags m_Settings;
         private ModuleStatus[] m_ModuleStatus = new ModuleStatus[(int) ModuleId.COUNT];
         private long m_NextFlushTick = -1;
         private long m_NextFlushTickBase;
-        private int m_FlushFailureCounter;
+        private long m_NextConnectionRetry;
 
         // dispatcher
         private FlushDispatcher m_FlushDispatcher;
 
         // data argument builder - this holds the event stream as a stringified json array, without the square brackets
         private readonly StringBuilder m_EventStream = new StringBuilder(EventStreamMinimumSize);
-        private int m_SubmittedStreamLength;
+        private StreamState m_MainStreamState;
+        private StreamState m_MirrorStreamState;
 
         // custom event parameter json builder - this holds the custom event parameters
         private unsafe char* m_DataBufferHead;
@@ -175,6 +232,15 @@ namespace OGD {
 
         // static
         static private OGDLog s_Instance;
+
+        #region Events
+
+        /// <summary>
+        /// Event invoked when an endpoint connection has failed too many times in a row.
+        /// </summary>
+        public event Action<EndpointType> OnConnectionFailedTooManyTimes;
+
+        #endregion // Events
 
         /// <summary>
         /// Creates a new OpenGameData logger.
@@ -211,6 +277,8 @@ namespace OGD {
                 m_SubmitBufferHead = (byte*) Marshal.AllocHGlobal(EventStreamBufferInitialSize);
                 #endif // HAS_UPLOAD_NATIVE_ARRAY
             }
+
+            m_MainStreamState.Active = true;
 
             m_Settings = SettingsFlags.Default;
             m_SchedulingConfig = SchedulingConfig.Default;
@@ -462,8 +530,16 @@ namespace OGD {
 
                 if (!string.IsNullOrEmpty(m_MirroringURL)) {
                     m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_MirroringURL);
+                    if (m_MirrorEndpoint != null) {
+                        m_MirrorStreamState.CleanActivate();
+                    } else {
+                        m_MirrorStreamState = default;
+                        RemoveConfirmedUploadedEvents(false);
+                    }
                 } else {
                     m_MirrorEndpoint = null;
+                    m_MirrorStreamState = default;
+                    RemoveConfirmedUploadedEvents(false);
                 }
             }
         }
@@ -513,6 +589,38 @@ namespace OGD {
         }
 
         #endregion // Configuration
+
+        #region Connection
+
+        /// <summary>
+        /// Returns if the main server or, if previously configured, the mirror server
+        /// has lost its connection by failing too many times.
+        /// </summary>
+        public bool HasLostConnection() {
+            return !m_MainStreamState.Active || (m_MirrorEndpoint != null && !m_MirrorStreamState.Active);
+        }
+
+        /// <summary>
+        /// Attempts to reconnect to the main server and, if previously configured,
+        /// the mirror server.
+        /// </summary>
+        public void AttemptReconnect() {
+            if (!m_MainStreamState.Active) {
+                m_MainStreamState.Active = true;
+                m_MainStreamState.FailureCounter = EndpointFailureCountReset;
+                TryScheduleFlush(m_SchedulingConfig.FlushDelay);
+            }
+
+            if (m_MirrorEndpoint != null && !m_MirrorStreamState.Active) {
+                m_MirrorStreamState.Active = true;
+                m_MirrorStreamState.FailureCounter = EndpointFailureCountReset;
+                TryScheduleFlush(m_SchedulingConfig.FlushDelay);
+            }
+
+            m_NextConnectionRetry = -1;
+        }
+
+        #endregion // Connection
 
         #region Events
 
@@ -680,8 +788,7 @@ namespace OGD {
         public void SubmitEvent() {
             FinishEventData();
             if ((m_StatusFlags & StatusFlags.Flushing) == 0) {
-                m_FlushDispatcher.enabled = true;
-                TryScheduleFlush(m_SchedulingConfig.FlushDebounce);
+                TryScheduleFlush(m_SchedulingConfig.FlushDelay);
             }
         }
 
@@ -1132,6 +1239,16 @@ namespace OGD {
 
         #region Flush
 
+        private struct UploadPacket {
+#if HAS_UPLOAD_NATIVE_ARRAY
+            public NativeArray<byte> Data;
+#else
+            public byte[] Data;
+#endif // HAS_UPLOAD_NATIVE_ARRAY
+
+            public int CharsProcessed;
+        }
+
         /// <summary>
         /// Flushes all queued events to the server.
         /// </summary>
@@ -1146,107 +1263,272 @@ namespace OGD {
 
             if ((m_Settings & SettingsFlags.SkipOGDUpload) != 0) {
                 if ((m_Settings & SettingsFlags.Debug) != 0) {
-                    UnityEngine.Debug.LogFormat("[OGDLog] Skipping server upload");
+                    Console.WriteLine("[OGDLog] Skipping server upload");
                 }
-                m_SubmittedStreamLength = 0;
+                m_MainStreamState = default;
+                m_MirrorStreamState = default;
                 m_EventStream.Clear();
                 return;
             }
 
-            m_StatusFlags |= StatusFlags.Flushing;
-            m_SubmittedStreamLength = m_EventStream.Length;
-
             if (ModuleReady(ModuleId.OpenGameData)) {
-                EnsureBufferSize((m_EventStream.Length * 4 / 3) + EventStreamBufferPadding); // with some padding to ensure encoding doesn't result in any buffer overflows
+                UploadPacket mainPacket;
+                bool canReusePacket = m_MainStreamState.BaseOffset == m_MirrorStreamState.BaseOffset;
+                bool anySent = false;
 
-                // copy the current event stream into our buffer
-                // since it's not enclosed with array brackets, we offset it by 1
-                int eventStreamCharLength = m_EventStream.Length + 1;
-                m_EventStream.CopyTo(0, m_EventStreamEncodingChars, 1, eventStreamCharLength - 1); // also it ends with a comma so we can ignore copying that
-                m_EventStreamEncodingChars[0] = '[';
-                m_EventStreamEncodingChars[eventStreamCharLength - 1] = ']';
+                if (m_MainStreamState.ReadyForSend() && TryGenerateUploadPacket("main", m_MainStreamState.BaseOffset, out mainPacket)) {
+                    m_MainStreamState.SentOffset = m_MainStreamState.BaseOffset;
+                    m_MainStreamState.SentLength = mainPacket.CharsProcessed;
 
-                if ((m_Settings & SettingsFlags.Debug) != 0) {
-                    UnityEngine.Debug.LogFormat("[OGDLog] Uploading event stream: {0}", new string(m_EventStreamEncodingChars, 0, eventStreamCharLength));
+                    var request = GeneratePostRequest(m_Endpoint, mainPacket, m_Settings);
+                    UnityWebRequestAsyncOperation operation = request.SendWebRequest();
+                    operation.completed += HandleOGDPostResponse;
+                    anySent = true;
+                } else {
+                    canReusePacket = false;
+                    mainPacket = default;
                 }
 
-                // encode data between buffers
-                int dataByteLength = Encoding.UTF8.GetBytes(m_EventStreamEncodingChars, 0, eventStreamCharLength, m_EventStreamEncodingBytes, 0); // encode chars to bytes (UTF8)
-                if ((m_Settings & SettingsFlags.Base64Encode) != 0) {
-                    int base64Chars = Convert.ToBase64CharArray(m_EventStreamEncodingBytes, 0, dataByteLength, m_EventStreamEncodingChars, 0); // encode bytes to chars (base64)
-                    dataByteLength = Encoding.UTF8.GetBytes(m_EventStreamEncodingChars, 0, base64Chars, m_EventStreamEncodingBytes, 0); // encode chars back to bytes (UTF8)
-                }
-                dataByteLength = OGDLogUtils.EscapePostData(m_EventStreamEncodingBytes, 0, dataByteLength, m_EventStreamEncodingEscaped, 0); // encode bytes to URI-escaped bytes
+                if (m_MirrorEndpoint != null && m_MirrorStreamState.ReadyForSend()) {
+                    UploadPacket mirrorPacket;
+                    bool uploadMirror;
+                    if (canReusePacket) {
+                        mirrorPacket = mainPacket;
+                        uploadMirror = true;
+                    } else {
+                        uploadMirror = TryGenerateUploadPacket("mirror", m_MirrorStreamState.BaseOffset, out mirrorPacket);
+                    }
 
-                // finally generate the actual post bytes
-                UploadHandlerRaw uploadHandler;
-                #if HAS_UPLOAD_NATIVE_ARRAY
-                unsafe {
-                    int totalUploadByteLength = dataByteLength + DataAdditionalByteCount;
-                    NativeArray<byte> encodedData = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>(m_SubmitBufferHead, totalUploadByteLength, Allocator.None);
-                    OGDLogUtils.CopyArray(DataHeaderRawBytes, 0, DataHeaderRawByteSize, m_SubmitBufferHead, 0, totalUploadByteLength); // copy header "data="
-                    OGDLogUtils.CopyArray(DataFooterRawBytes, 0, DataFooterRawBytes.Length, m_SubmitBufferHead, DataHeaderRawByteSize + dataByteLength, totalUploadByteLength); // copy footer "
-                    OGDLogUtils.CopyArray(m_EventStreamEncodingEscaped, 0, dataByteLength, m_SubmitBufferHead, DataHeaderRawByteSize, totalUploadByteLength); // copy escaped data
-                    #if ENABLE_UNITY_COLLECTIONS_CHECKS
-                    NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref encodedData, AtomicSafetyHandle.GetTempUnsafePtrSliceHandle());
-                    #endif
-                    uploadHandler = new UploadHandlerRaw(encodedData, false);
-                }
-                #else
-                byte[] encodedData = new byte[dataByteLength + DataAdditionalByteCount];
-                OGDLogUtils.CopyArray(DataHeaderRawBytes, 0, DataHeaderRawByteSize, encodedData, 0); // copy header "data="
-                OGDLogUtils.CopyArray(DataFooterRawBytes, 0, DataFooterRawBytes.Length, encodedData, DataHeaderRawByteSize + dataByteLength); // copy footer "
-                OGDLogUtils.CopyArray(m_EventStreamEncodingEscaped, 0, dataByteLength, encodedData, DataHeaderRawByteSize); // copy escaped data
-                uploadHandler = new UploadHandlerRaw(encodedData);
-                #endif // HAS_UPLOAD_NATIVE_ARRAY
+                    if (uploadMirror) {
+                        m_MirrorStreamState.SentOffset = m_MirrorStreamState.BaseOffset;
+                        m_MirrorStreamState.SentLength = mirrorPacket.CharsProcessed;
 
-                UnityWebRequest request = new UnityWebRequest(m_Endpoint, UnityWebRequest.kHttpVerbPOST);
-                if ((m_Settings & SettingsFlags.Debug) != 0) {
-                    request.downloadHandler = new DownloadHandlerBuffer(); // we only need a download handler if we're in debug mode
+                        var request = GeneratePostRequest(m_MirrorEndpoint, mirrorPacket, m_Settings);
+                        UnityWebRequestAsyncOperation operation = request.SendWebRequest();
+                        operation.completed += HandleMirrorPostResponse;
+                        anySent = true;
+                    }
                 }
-                request.uploadHandler = uploadHandler;
-                request.uploadHandler.contentType = "application/x-www-form-urlencoded";
 
-                UnityWebRequestAsyncOperation operation = request.SendWebRequest();
-                operation.completed += HandleOGDPostResponse;
+                if (anySent) {
+                    m_StatusFlags |= StatusFlags.Flushing;
+                }
             }
+        }
+
+        /// <summary>
+        /// Attempts to generate a packet of encoded events for upload.
+        /// </summary>
+        private bool TryGenerateUploadPacket(string debugTag, int offset, out UploadPacket packet) {
+            int length = m_EventStream.Length - offset;
+            if (length <= 0) {
+                packet = default;
+                return false;
+            }
+
+            EnsureBufferSize((length * 4 / 3) + EventStreamBufferPadding); // with some padding to ensure encoding doesn't result in any buffer overflows
+
+            // copy the current event stream into our buffer
+            // since it's not enclosed with array brackets, we offset it by 1
+            int eventStreamCharLength = length + 1;
+            m_EventStream.CopyTo(offset, m_EventStreamEncodingChars, 1, eventStreamCharLength - 1); // also it ends with a comma so we can ignore copying that
+            m_EventStreamEncodingChars[0] = '[';
+            m_EventStreamEncodingChars[eventStreamCharLength - 1] = ']';
+
+            if ((m_Settings & SettingsFlags.Debug) != 0) {
+                using (OGDLogUtils.DisableLogStackTrace()) {
+                    UnityEngine.Debug.LogFormat("[OGDLog] Encoding event stream for '{0}' ({1}+{2}): {3}", debugTag, offset, length, new string(m_EventStreamEncodingChars, 0, eventStreamCharLength));
+                }
+            }
+
+            // encode data between buffers
+            int dataByteLength = Encoding.UTF8.GetBytes(m_EventStreamEncodingChars, 0, eventStreamCharLength, m_EventStreamEncodingBytes, 0); // encode chars to bytes (UTF8)
+            if ((m_Settings & SettingsFlags.Base64Encode) != 0) {
+                int base64Chars = Convert.ToBase64CharArray(m_EventStreamEncodingBytes, 0, dataByteLength, m_EventStreamEncodingChars, 0); // encode bytes to chars (base64)
+                dataByteLength = Encoding.UTF8.GetBytes(m_EventStreamEncodingChars, 0, base64Chars, m_EventStreamEncodingBytes, 0); // encode chars back to bytes (UTF8)
+            }
+            dataByteLength = OGDLogUtils.EscapePostData(m_EventStreamEncodingBytes, 0, dataByteLength, m_EventStreamEncodingEscaped, 0); // encode bytes to URI-escaped bytes
+
+#if HAS_UPLOAD_NATIVE_ARRAY
+            unsafe {
+                int totalUploadByteLength = dataByteLength + DataAdditionalByteCount;
+                NativeArray<byte> encodedData = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>(m_SubmitBufferHead, totalUploadByteLength, Allocator.None);
+                OGDLogUtils.CopyArray(DataHeaderRawBytes, 0, DataHeaderRawByteSize, m_SubmitBufferHead, 0, totalUploadByteLength); // copy header "data="
+                OGDLogUtils.CopyArray(DataFooterRawBytes, 0, DataFooterRawBytes.Length, m_SubmitBufferHead, DataHeaderRawByteSize + dataByteLength, totalUploadByteLength); // copy footer "
+                OGDLogUtils.CopyArray(m_EventStreamEncodingEscaped, 0, dataByteLength, m_SubmitBufferHead, DataHeaderRawByteSize, totalUploadByteLength); // copy escaped data
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref encodedData, AtomicSafetyHandle.GetTempUnsafePtrSliceHandle());
+#endif
+                packet = new UploadPacket() {
+                    Data = encodedData,
+                    CharsProcessed = length
+                };
+                return true;
+            }
+#else
+            byte[] encodedData = new byte[dataByteLength + DataAdditionalByteCount];
+            OGDLogUtils.CopyArray(DataHeaderRawBytes, 0, DataHeaderRawByteSize, encodedData, 0); // copy header "data="
+            OGDLogUtils.CopyArray(DataFooterRawBytes, 0, DataFooterRawBytes.Length, encodedData, DataHeaderRawByteSize + dataByteLength); // copy footer "
+            OGDLogUtils.CopyArray(m_EventStreamEncodingEscaped, 0, dataByteLength, encodedData, DataHeaderRawByteSize); // copy escaped data
+            packet = new UploadPacket() {
+                Data = encodedData,
+                CharsProcessed = length
+            };
+            return true;
+#endif // HAS_UPLOAD_NATIVE_ARRAY
+        }
+
+        /// <summary>
+        /// Generates the POST request for the given uri and packet.
+        /// </summary>
+        static private UnityWebRequest GeneratePostRequest(Uri endpoint, UploadPacket packet, SettingsFlags settings) {
+            UnityWebRequest request = new UnityWebRequest(endpoint, UnityWebRequest.kHttpVerbPOST);
+            if ((settings & SettingsFlags.Debug) != 0) {
+                request.downloadHandler = new DownloadHandlerBuffer(); // we only need a download handler if we're in debug mode
+            }
+
+            UploadHandlerRaw uploadHandler;
+#if HAS_UPLOAD_NATIVE_ARRAY
+            uploadHandler = new UploadHandlerRaw(packet.Data, false);
+#else
+            uploadHandler = new UploadHandlerRaw(packet.Data);
+#endif // HAS_UPLOAD_NATIVE_ARRAY
+
+            request.uploadHandler = uploadHandler;
+            uploadHandler.contentType = "application/x-www-form-urlencoded";
+            return request;
         }
 
         private void HandleOGDPostResponse(AsyncOperation op) {
             UnityWebRequest request = ((UnityWebRequestAsyncOperation) op).webRequest;
-#if HAS_UWR_RESULT
-            bool hadError = request.result == UnityWebRequest.Result.Success;
-#else
-            bool hadError = request.isHttpError || request.isNetworkError;
-#endif // HAS_UWR_RESULT
-            if (!hadError) {
-                m_FlushFailureCounter = 0;
-                m_EventStream.Remove(0, m_SubmittedStreamLength); // if successful, basically remove the previously submitted data from the event stream
+            HandleBasePostResponse(request, ref m_MainStreamState, EndpointType.Main, "main");
+        }
+
+        private void HandleMirrorPostResponse(AsyncOperation op) {
+            UnityWebRequest request = ((UnityWebRequestAsyncOperation) op).webRequest;
+            HandleBasePostResponse(request, ref m_MirrorStreamState, EndpointType.Mirror, "mirror");
+        }
+
+        private UploadResultType HandleBasePostResponse(UnityWebRequest request, ref StreamState state, EndpointType endpoint, string debugTag) {
+            UploadResultType resultType = GetUploadResult(request);
+
+            if (resultType == UploadResultType.Success) {
+                state.FailureCounter = 0;
+                state.BaseOffset += state.SentLength;
             } else {
-                m_FlushFailureCounter++;
+                state.FailureCounter += (int) resultType;
             }
+
+            state.SentLength = 0;
+            state.SentOffset = 0;
 
             ResetScheduling();
 
             if ((m_Settings & SettingsFlags.Debug) != 0 && request.downloadHandler != null) {
-                if (hadError) {
-                    UnityEngine.Debug.LogWarningFormat("[OGDLog] Upload unsuccessful - error '{0}' with response code {1}", request.error, request.responseCode);
-                } else {
-                    UnityEngine.Debug.LogFormat("[OGDLog] Upload successful with response code {0} and response '{1}'", request.responseCode, request.downloadHandler.text);
+                using(OGDLogUtils.DisableLogStackTrace())
+                using(OGDLogUtils.DisableWarningStackTrace()) {
+                    switch (resultType) {
+                        case UploadResultType.Success: {
+                            UnityEngine.Debug.LogFormat("[OGDLog] Upload '{0}' successful - response code {1}, {2}U/{3}D, response '{4}'",
+                                debugTag, request.responseCode, request.uploadedBytes, request.downloadedBytes, request.downloadHandler.text);
+                            break;
+                        }
+                        case UploadResultType.Failure: {
+                            UnityEngine.Debug.LogWarningFormat("[OGDLog] Upload '{0}' unsuccessful - error '{1}' with response code {2}, {3}U/{4}D",
+                                debugTag, request.error, request.responseCode, request.uploadedBytes, request.downloadedBytes);
+                            break;
+                        }
+                        case UploadResultType.CriticalFailure: {
+                            UnityEngine.Debug.LogWarningFormat("[OGDLog] Upload '{0}' critically unsuccessful - error '{1}' with response code {2}, {3}U/{4}D",
+                                debugTag, request.error, request.responseCode, request.uploadedBytes, request.downloadedBytes);
+                            break;
+                        }
+                    }
                 }
             }
 
             request.Dispose();
 
-            m_SubmittedStreamLength = 0;
+            bool tooManyFailures = state.FailureCounter >= EndpointFailureCountCap;
+            if (tooManyFailures) {
+                state.Active = false;
+                if ((m_Settings & SettingsFlags.Debug) != 0) {
+                    using (OGDLogUtils.DisableWarningStackTrace()) {
+                        UnityEngine.Debug.LogWarningFormat("[OGDLog] Upload '{0}' failed too many times - disabling temporarily", debugTag);
+                    }
+                } else {
+                    Console.WriteLine("[OGDLog] Upload '{0}' failed too many times - disabling temporarily", debugTag);
+                }
+
+                if (m_NextConnectionRetry <= 0) {
+                    m_NextConnectionRetry = Stopwatch.GetTimestamp() + (long) (Stopwatch.Frequency * m_SchedulingConfig.ReconnectDelay);
+                    m_FlushDispatcher.enabled = true;
+                }
+                OnConnectionFailedTooManyTimes?.Invoke(endpoint);
+            }
+
+            RemoveConfirmedUploadedEvents(true);
             m_StatusFlags &= ~StatusFlags.Flushing;
 
             // if we still have events to submit, let's flush again
             if (m_EventStream.Length > 0) {
-                if (!hadError) {
+                if (resultType == UploadResultType.Success) {
                     Flush();
                 } else {
-                    TryScheduleFlush(m_SchedulingConfig.FlushFailureDelay + (m_FlushFailureCounter - 1) * m_SchedulingConfig.RepeatedFailureDelay);
+                    TryScheduleFlush(m_SchedulingConfig.FlushFailureDelay + (state.FailureCounter - 1) * m_SchedulingConfig.RepeatedFailureDelay);
+                }
+            }
+
+            return resultType;
+        }
+
+        static private UploadResultType GetUploadResult(UnityWebRequest request) {
+            long code = request.responseCode;
+            bool isError0 = code <= 0;
+            bool isError5xx = code >= 500;
+#if HAS_UWR_RESULT
+            bool requestError = request.result != UnityWebRequest.Result.Success;
+#else
+            bool requestError = request.isHttpError || request.isNetworkError;
+#endif // HAS_UWR_RESULT
+            bool uploadFailed = request.uploadedBytes <= 0;
+
+            if (isError0 || uploadFailed) {
+                return UploadResultType.CriticalFailure;
+            } else if (requestError || isError5xx) {
+                return UploadResultType.Failure;
+            } else {
+                return UploadResultType.Success;
+            }
+        }
+
+        private void RemoveConfirmedUploadedEvents(bool preserveInactive) {
+            int end;
+            if (m_MirrorEndpoint != null && (m_MirrorStreamState.Active || preserveInactive)) {
+                end = Math.Min(m_MainStreamState.BaseOffset, m_MirrorStreamState.BaseOffset);
+
+                if (end > 0) {
+                    m_EventStream.Remove(0, end);
+                    m_MainStreamState.BaseOffset -= end;
+                    m_MainStreamState.SentOffset -= end;
+                    m_MirrorStreamState.BaseOffset -= end;
+                    m_MirrorStreamState.SentOffset -= end;
+
+                    if ((m_Settings & SettingsFlags.Debug) != 0) {
+                        Console.WriteLine("[OGDLog] Erased {0} flushed characters from stream", end);
+                    }
+                }
+            } else {
+                end = m_MainStreamState.BaseOffset;
+
+                if (end > 0) {
+                    m_EventStream.Remove(0, end);
+                    m_MainStreamState.BaseOffset -= end;
+                    m_MainStreamState.SentOffset -= end;
+
+                    if ((m_Settings & SettingsFlags.Debug) != 0) {
+                        Console.WriteLine("[OGDLog] Erased {0} flushed characters from stream", end);
+                    }
                 }
             }
         }
@@ -1258,7 +1540,7 @@ namespace OGD {
 
             int newBufferSize = (int) OGDLogUtils.AlignUp((uint) bufferSize, 512u);
             if ((m_Settings & SettingsFlags.Debug) != 0) {
-                UnityEngine.Debug.LogFormat("[OGDLog] Resizing internal stream encoding and upload buffers to {0} to accommodate size {1}", newBufferSize, bufferSize);
+                Console.WriteLine("[OGDLog] Resizing internal stream encoding and upload buffers to {0} to accommodate size {1}", newBufferSize, bufferSize);
             }
 
             Array.Resize(ref m_EventStreamEncodingChars, newBufferSize);
@@ -1285,9 +1567,17 @@ namespace OGD {
             }
 
             private void LateUpdate() {
-                if (Stopwatch.GetTimestamp() >= m_Logger.m_NextFlushTick) {
+                var now = Stopwatch.GetTimestamp();
+                
+                if (m_Logger.m_NextConnectionRetry > 0 && now >= m_Logger.m_NextConnectionRetry) {
+                    m_Logger.AttemptReconnect();
+                    m_Logger.m_NextConnectionRetry = -1;
+                    enabled = m_Logger.m_NextFlushTick > 0 || m_Logger.m_NextConnectionRetry > 0;
+                }
+
+                if (m_Logger.m_NextFlushTick > 0 && now >= m_Logger.m_NextFlushTick) {
                     m_Logger.Flush();
-                    enabled = false;
+                    enabled = m_Logger.m_NextFlushTick > 0 || m_Logger.m_NextConnectionRetry > 0;
                 }
             }
         }
@@ -1304,9 +1594,10 @@ namespace OGD {
             } else {
                 m_NextFlushTick = Math.Max(m_NextFlushTick, m_NextFlushTickBase + tickDelay);
             }
+            m_FlushDispatcher.enabled = true;
         }
 
-#endregion // Flush
+        #endregion // Flush
 
         #region String Assembly
 
@@ -1333,7 +1624,12 @@ namespace OGD {
             }
 
             string uriString = charBuff.ToString();
-            return new Uri(uriString);
+            try {
+                return new Uri(uriString);
+            } catch(UriFormatException formatException) {
+                UnityEngine.Debug.LogErrorFormat("[OGDLog] Failed to parse '{0}' to a URI", uriString);
+                return null;
+            }
         }
 
         // BUFFERS
