@@ -9,6 +9,8 @@ Unity package for logging with Field Day's OpenGameData servers.
 3. Firebase Analytics integration; Support for event constants; performance improvements (21 Sept 2022)
 4. Support for `game_state` and `user_data` parameters; support for sending arbitrary json as `event_data` (13 Jan 2023)
 5. Updated survey support (4 April 2023)
+6. Support for `game_state` and `user_data` as arbitrary json (14 May 2024)
+7. Support for mirroring events to a separate endpoint (21 May 2024)
 
 ## Setup
 
@@ -135,6 +137,7 @@ and `StringBuilder` instances.
 
 The default maximum size of the event parameters for a single event is 4096 characters.
 The default maximum size for `game_state` and `user_data` is 2048 characters each.
+You can reconfigure these maximum sizes by passing a `OGDLog.MemoryConfig` into the `OGDLog` constructor.
 
 ### Firebase Analytics
 
@@ -151,6 +154,10 @@ method on your logger instance to return `true` before setting that shared data.
 Logging to Firebase for Android or iOS will require an additional Unity package. Follow the guide [here](https://firebase.google.com/docs/unity/setup) to set that up.
 
 **Note**: On Android, Google Play services checking is already handled by `OGDLog`.
+
+### Mirroring
+
+You can mirror your OpenGameData events to a secondary endpoint by calling `OGDLog.ConfigureMirroring()` with the given endpoint url as a string.
 
 ## Debugging
 
@@ -235,7 +242,7 @@ Note: Survey prefabs must make use of `TextMeshPro` text elements to be compatib
 
 To update the local package, run the following command:
 
-`$ git submodule update --remote`
+`$ openupm add com.fieldday.opengamedata-unity`
 
 ## Removal
 
