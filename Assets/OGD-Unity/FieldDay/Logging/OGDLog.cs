@@ -2,8 +2,13 @@
 #define HAS_UPLOAD_NATIVE_ARRAY
 #endif // UNITY_2021_OR_NEWER
 
+#if UNITY_2020_1_OR_NEWER
+#define HAS_UWR_RESULT
+#endif // UNITY_2020_1_OR_NEWER
+
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -30,6 +35,7 @@ namespace OGD {
         private const int EventStreamBufferInitialSize = 4096;
         private const int EventCustomParamsBufferSize = 4096;
         private const int AdditionalStateBufferSize = 2048;
+        private const float MaximumFlushDelay = 3f;
 
         static private readonly byte[] DataHeaderRawBytes = Encoding.UTF8.GetBytes("data=\"");
         static private readonly byte[] DataFooterRawBytes = Encoding.UTF8.GetBytes("\"");
@@ -65,6 +71,22 @@ namespace OGD {
                 EventParameterBufferSize = EventCustomParamsBufferSize,
                 GameStateBufferSize = AdditionalStateBufferSize,
                 PlayerDataBufferSize = AdditionalStateBufferSize
+            };
+        }
+
+        /// <summary>
+        /// Timing configuration.
+        /// </summary>
+        [Serializable]
+        public struct SchedulingConfig {
+            public float FlushDebounce;
+            public float FlushFailureDelay;
+            public float RepeatedFailureDelay;
+
+            static public readonly SchedulingConfig Default = new SchedulingConfig() {
+                FlushDebounce = 0.2f,
+                FlushFailureDelay = 0.4f,
+                RepeatedFailureDelay = 0.05f
             };
         }
 
@@ -116,13 +138,19 @@ namespace OGD {
         private OGDLogConsts m_OGDConsts;
         private FirebaseConsts m_FirebaseConsts;
         private SessionConsts m_SessionConsts;
+        private string m_MirroringURL;
+        private SchedulingConfig m_SchedulingConfig;
 
         // state
         private Uri m_Endpoint;
+        private Uri m_MirrorEndpoint;
         private uint m_EventSequence;
         private StatusFlags m_StatusFlags;
         private SettingsFlags m_Settings;
         private ModuleStatus[] m_ModuleStatus = new ModuleStatus[(int) ModuleId.COUNT];
+        private long m_NextFlushTick = -1;
+        private long m_NextFlushTickBase;
+        private int m_FlushFailureCounter;
 
         // dispatcher
         private FlushDispatcher m_FlushDispatcher;
@@ -185,6 +213,7 @@ namespace OGD {
             }
 
             m_Settings = SettingsFlags.Default;
+            m_SchedulingConfig = SchedulingConfig.Default;
             
             SetModuleStatus(ModuleId.OpenGameData, ModuleStatus.Preparing);
         }
@@ -278,6 +307,7 @@ namespace OGD {
                 #if HAS_UPLOAD_NATIVE_ARRAY
                 if (m_SubmitBufferHead != null) {
                     Marshal.FreeHGlobal((IntPtr) m_SubmitBufferHead);
+                    m_SubmitBufferHead = null;
                 }
                 #endif // HAS_UPLOAD_NATIVE_ARRAY
             }
@@ -304,10 +334,10 @@ namespace OGD {
             if (s_Instance != null && s_Instance != this) {
                 throw new InvalidOperationException("Cannot have multiple instances of OGDLog");
             }
-            
+
             s_Instance = this;
             m_OGDConsts = constants;
-            m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts);
+            RefreshEndpointUris();
 
             m_StatusFlags |= StatusFlags.Initialized;
             SetModuleStatus(ModuleId.OpenGameData, ModuleStatus.Ready);
@@ -332,7 +362,7 @@ namespace OGD {
         public void SetUserId(string userId) {
             if (m_SessionConsts.UserId != userId) {
                 m_SessionConsts.UserId = userId;
-                m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts);
+                RefreshEndpointUris();
 
                 if (ModuleReady(ModuleId.Firebase)) {
                     Firebase_SetSessionConsts(m_SessionConsts);
@@ -398,8 +428,8 @@ namespace OGD {
             // we should at least make sure event sequence indices will not overlap
             s_FirebaseEventSequenceOffset += m_EventSequence;
             m_EventSequence = 0;
-            
-            m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts);
+
+            RefreshEndpointUris();
         }
 
         /// <summary>
@@ -424,6 +454,28 @@ namespace OGD {
         }
 
         /// <summary>
+        /// Sets the logger to mirror log output to another endpoint.
+        /// </summary>
+        public void ConfigureMirroring(string mirrorUrl) {
+            if (m_MirroringURL != mirrorUrl) {
+                m_MirroringURL = mirrorUrl;
+
+                if (!string.IsNullOrEmpty(m_MirroringURL)) {
+                    m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_MirroringURL);
+                } else {
+                    m_MirrorEndpoint = null;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Sets timing configuration.
+        /// </summary>
+        public void ConfigureScheduling(SchedulingConfig schedulingConfig) {
+            m_SchedulingConfig = schedulingConfig;
+        }
+
+        /// <summary>
         /// Returns if this logger has the given module.
         /// </summary>
         [MethodImpl(256)]
@@ -445,6 +497,19 @@ namespace OGD {
         [MethodImpl(256)]
         private void SetModuleStatus(ModuleId module, ModuleStatus status) {
             m_ModuleStatus[(int) module] = status;
+        }
+
+        /// <summary>
+        /// Rebuilds endpoint uris.
+        /// </summary>
+        [MethodImpl(256)]
+        private void RefreshEndpointUris() {
+            m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, null);
+            if (!string.IsNullOrEmpty(m_MirroringURL)) {
+                m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_MirroringURL);
+            } else {
+                m_MirrorEndpoint = null;
+            }
         }
 
         #endregion // Configuration
@@ -614,7 +679,10 @@ namespace OGD {
         /// </summary>
         public void SubmitEvent() {
             FinishEventData();
-            m_FlushDispatcher.enabled = true;
+            if ((m_StatusFlags & StatusFlags.Flushing) == 0) {
+                m_FlushDispatcher.enabled = true;
+                TryScheduleFlush(m_SchedulingConfig.FlushDebounce);
+            }
         }
 
         /// <summary>
@@ -1074,6 +1142,7 @@ namespace OGD {
             }
 
             FinishEventData();
+            ResetScheduling();
 
             if ((m_Settings & SettingsFlags.SkipOGDUpload) != 0) {
                 if ((m_Settings & SettingsFlags.Debug) != 0) {
@@ -1145,26 +1214,40 @@ namespace OGD {
 
         private void HandleOGDPostResponse(AsyncOperation op) {
             UnityWebRequest request = ((UnityWebRequestAsyncOperation) op).webRequest;
-            string error = request.error;
-            bool hadError = !string.IsNullOrEmpty(error);
+#if HAS_UWR_RESULT
+            bool hadError = request.result == UnityWebRequest.Result.Success;
+#else
+            bool hadError = request.isHttpError || request.isNetworkError;
+#endif // HAS_UWR_RESULT
             if (!hadError) {
+                m_FlushFailureCounter = 0;
                 m_EventStream.Remove(0, m_SubmittedStreamLength); // if successful, basically remove the previously submitted data from the event stream
+            } else {
+                m_FlushFailureCounter++;
             }
+
+            ResetScheduling();
 
             if ((m_Settings & SettingsFlags.Debug) != 0 && request.downloadHandler != null) {
                 if (hadError) {
-                    UnityEngine.Debug.LogWarningFormat("[OGDLog] Upload unsuccessful - error '{0}' with response code {1}", error, request.responseCode);
+                    UnityEngine.Debug.LogWarningFormat("[OGDLog] Upload unsuccessful - error '{0}' with response code {1}", request.error, request.responseCode);
                 } else {
                     UnityEngine.Debug.LogFormat("[OGDLog] Upload successful with response code {0} and response '{1}'", request.responseCode, request.downloadHandler.text);
                 }
             }
+
+            request.Dispose();
 
             m_SubmittedStreamLength = 0;
             m_StatusFlags &= ~StatusFlags.Flushing;
 
             // if we still have events to submit, let's flush again
             if (m_EventStream.Length > 0) {
-                Flush();
+                if (!hadError) {
+                    Flush();
+                } else {
+                    TryScheduleFlush(m_SchedulingConfig.FlushFailureDelay + (m_FlushFailureCounter - 1) * m_SchedulingConfig.RepeatedFailureDelay);
+                }
             }
         }
 
@@ -1182,11 +1265,11 @@ namespace OGD {
             Array.Resize(ref m_EventStreamEncodingBytes, newBufferSize);
             Array.Resize(ref m_EventStreamEncodingEscaped, newBufferSize);
 
-            #if HAS_UPLOAD_NATIVE_ARRAY
+#if HAS_UPLOAD_NATIVE_ARRAY
             unsafe {
                 m_SubmitBufferHead = (byte*) Marshal.ReAllocHGlobal((IntPtr) m_SubmitBufferHead, (IntPtr) newBufferSize);
             }
-            #endif // HAS_UPLOAD_NATIVE_ARRAY
+#endif // HAS_UPLOAD_NATIVE_ARRAY
         }
 
         private class FlushDispatcher : MonoBehaviour {
@@ -1202,20 +1285,36 @@ namespace OGD {
             }
 
             private void LateUpdate() {
-                m_Logger.Flush();
-                enabled = false;
+                if (Stopwatch.GetTimestamp() >= m_Logger.m_NextFlushTick) {
+                    m_Logger.Flush();
+                    enabled = false;
+                }
             }
         }
 
-        #endregion // Flush
+        private void ResetScheduling() {
+            m_NextFlushTick = -1;
+        }
+
+        private void TryScheduleFlush(float delay) {
+            long tickDelay = (long) (Stopwatch.Frequency * Math.Min(delay, MaximumFlushDelay));
+            if (m_NextFlushTick < 0) {
+                m_NextFlushTickBase = Stopwatch.GetTimestamp();
+                m_NextFlushTick = m_NextFlushTickBase + tickDelay;
+            } else {
+                m_NextFlushTick = Math.Max(m_NextFlushTick, m_NextFlushTickBase + tickDelay);
+            }
+        }
+
+#endregion // Flush
 
         #region String Assembly
 
-        static private unsafe Uri BuildOGDUrl(OGDLogConsts ogdConsts, SessionConsts session) {
+        static private unsafe Uri BuildOGDUrl(OGDLogConsts ogdConsts, SessionConsts session, string overrideUrl) {
             char* buffer = stackalloc char[512];
             FixedCharBuffer charBuff = new FixedCharBuffer("url", buffer, 512);
             
-            charBuff.Write(OGDLogConsts.LogEndpoint);
+            charBuff.Write(overrideUrl ?? OGDLogConsts.LogEndpoint);
             charBuff.Write("?app_id=");
             charBuff.Write(Uri.EscapeDataString(ogdConsts.AppId.ToUpperInvariant()));
             charBuff.Write("&log_version=");
