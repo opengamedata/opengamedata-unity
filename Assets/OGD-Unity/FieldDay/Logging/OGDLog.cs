@@ -194,6 +194,7 @@ namespace OGD {
         private FirebaseConsts m_FirebaseConsts;
         private SessionConsts m_SessionConsts;
         private string m_MirroringURL;
+        private string m_MirroringAppIdOverride;
         private SchedulingConfig m_SchedulingConfig;
 
         // state
@@ -524,12 +525,13 @@ namespace OGD {
         /// <summary>
         /// Sets the logger to mirror log output to another endpoint.
         /// </summary>
-        public void ConfigureMirroring(string mirrorUrl) {
-            if (m_MirroringURL != mirrorUrl) {
+        public void ConfigureMirroring(string mirrorUrl, string overrideAppId = null) {
+            if (m_MirroringURL != mirrorUrl || m_MirroringAppIdOverride != overrideAppId) {
                 m_MirroringURL = mirrorUrl;
+                m_MirroringAppIdOverride = overrideAppId;
 
                 if (!string.IsNullOrEmpty(m_MirroringURL)) {
-                    m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_MirroringURL);
+                    m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_MirroringURL, m_MirroringAppIdOverride);
                     if (m_MirrorEndpoint != null) {
                         m_MirrorStreamState.CleanActivate();
                     } else {
@@ -580,9 +582,9 @@ namespace OGD {
         /// </summary>
         [MethodImpl(256)]
         private void RefreshEndpointUris() {
-            m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, null);
+            m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, null, null);
             if (!string.IsNullOrEmpty(m_MirroringURL)) {
-                m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_MirroringURL);
+                m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_MirroringURL, m_MirroringAppIdOverride);
             } else {
                 m_MirrorEndpoint = null;
             }
@@ -1703,13 +1705,13 @@ namespace OGD {
 
         #region String Assembly
 
-        static private unsafe Uri BuildOGDUrl(OGDLogConsts ogdConsts, SessionConsts session, string overrideUrl) {
+        static private unsafe Uri BuildOGDUrl(OGDLogConsts ogdConsts, SessionConsts session, string overrideUrl, string overrideAppId) {
             char* buffer = stackalloc char[512];
             FixedCharBuffer charBuff = new FixedCharBuffer("url", buffer, 512);
             
             charBuff.Write(overrideUrl ?? OGDLogConsts.LogEndpoint);
             charBuff.Write("?app_id=");
-            charBuff.Write(Uri.EscapeDataString(ogdConsts.AppId.ToUpperInvariant()));
+            charBuff.Write(Uri.EscapeDataString((overrideAppId ?? ogdConsts.AppId).ToUpperInvariant()));
             charBuff.Write("&log_version=");
             charBuff.Write(ogdConsts.ClientLogVersion);
             charBuff.Write("&app_version=");

@@ -161,7 +161,7 @@ Logging to Firebase for Android or iOS will require an additional Unity package.
 
 ### Mirroring
 
-You can mirror your OpenGameData events to a secondary endpoint by calling `OGDLog.ConfigureMirroring()` with the given endpoint url as a string.
+You can mirror your OpenGameData events to a secondary endpoint by calling `OGDLog.ConfigureMirroring()` with the given endpoint url as a string. You can optionally pass in an app id to use as an override for the endpoint.
 
 ## Debugging
 
