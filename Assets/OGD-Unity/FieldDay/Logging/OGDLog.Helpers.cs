@@ -27,10 +27,24 @@ namespace OGD {
         }
 
         /// <summary>
+        /// Appends a parameter with arbitrary json.
+        /// </summary>
+        public void Json(string paramName, string json) {
+            m_Logger.EventParamJson(paramName, json);
+        }
+
+        /// <summary>
         /// Appends a parameter with a string value.
         /// </summary>
         public void Param(string paramName, StringBuilder paramValue) {
             m_Logger.EventParam(paramName, paramValue);
+        }
+
+        /// <summary>
+        /// Appends a parameter with arbitrary json.
+        /// </summary>
+        public void Json(string paramName, StringBuilder json) {
+            m_Logger.EventParamJson(paramName, json);
         }
 
         /// <summary>
@@ -82,10 +96,24 @@ namespace OGD {
         }
 
         /// <summary>
+        /// Appends a parameter with arbitrary json.
+        /// </summary>
+        public void Json(string paramName, string json) {
+            m_Logger.GameStateParamJson(paramName, json);
+        }
+
+        /// <summary>
         /// Appends a parameter with a string value.
         /// </summary>
         public void Param(string paramName, StringBuilder paramValue) {
             m_Logger.GameStateParam(paramName, paramValue);
+        }
+
+        /// <summary>
+        /// Appends a parameter with arbitrary json.
+        /// </summary>
+        public void Json(string paramName, StringBuilder json) {
+            m_Logger.GameStateParamJson(paramName, json);
         }
 
         /// <summary>
@@ -137,10 +165,24 @@ namespace OGD {
         }
 
         /// <summary>
+        /// Appends a parameter with arbitrary json.
+        /// </summary>
+        public void Json(string paramName, string json) {
+            m_Logger.UserDataParamJson(paramName, json);
+        }
+
+        /// <summary>
         /// Appends a parameter with a string value.
         /// </summary>
         public void Param(string paramName, StringBuilder paramValue) {
             m_Logger.UserDataParam(paramName, paramValue);
+        }
+
+        /// <summary>
+        /// Appends a parameter with arbitrary json.
+        /// </summary>
+        public void Json(string paramName, StringBuilder json) {
+            m_Logger.UserDataParamJson(paramName, json);
         }
 
         /// <summary>

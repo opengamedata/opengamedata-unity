@@ -47,6 +47,7 @@ public class BasicLoggingExample : MonoBehaviour {
             using(var e = m_Logger.NewEvent("test_event")) {
                 e.Param("mouseX", Input.mousePosition.x);
                 e.Param("mouseY", Input.mousePosition.y);
+                e.Json("what_else", "{\"is_expected\": \"of me?\"}");
             }
         } else if (Input.GetMouseButtonDown(1)) {
             m_Logger.Log("test_structured", "{\"something\":[4,5,6,7,8,15],\"nesting\":{\"x\":15}}");

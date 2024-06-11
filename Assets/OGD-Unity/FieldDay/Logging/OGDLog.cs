@@ -717,6 +717,23 @@ namespace OGD {
         /// <summary>
         /// Writes a custom event string parameter.
         /// </summary>
+        public void EventParamJson(string parameterName, string parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingEventCustomData) == 0) {
+                throw new InvalidOperationException("No unsubmitted event to add an event parameter to");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBufferUnescaped(ref m_EventCustomParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetEventParam(parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom event string parameter.
+        /// </summary>
         public void EventParam(string parameterName, StringBuilder parameterValue) {
             if ((m_StatusFlags & StatusFlags.WritingEventCustomData) == 0) {
                 throw new InvalidOperationException("No unsubmitted event to add an event parameter to");
@@ -724,6 +741,23 @@ namespace OGD {
 
             if (ModuleReady(ModuleId.OpenGameData)) {
                 WriteBuffer(ref m_EventCustomParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetEventParam(parameterName, parameterValue.ToString());
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom event string parameter.
+        /// </summary>
+        public void EventParamJson(string parameterName, StringBuilder parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingEventCustomData) == 0) {
+                throw new InvalidOperationException("No unsubmitted event to add an event parameter to");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBufferUnescaped(ref m_EventCustomParamsBuffer, parameterName, parameterValue);
             }
 
             if (ModuleReady(ModuleId.Firebase)) {
@@ -992,6 +1026,23 @@ namespace OGD {
         /// <summary>
         /// Writes a custom game state string parameter.
         /// </summary>
+        public void GameStateParamJson(string parameterName, string parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingGameState) == 0) {
+                throw new InvalidOperationException("Game State not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBufferUnescaped(ref m_GameStateParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetGameStateParam(parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game state string parameter.
+        /// </summary>
         public void GameStateParam(string parameterName, StringBuilder parameterValue) {
             if ((m_StatusFlags & StatusFlags.WritingGameState) == 0) {
                 throw new InvalidOperationException("Game State not open for writing");
@@ -999,6 +1050,23 @@ namespace OGD {
 
             if (ModuleReady(ModuleId.OpenGameData)) {
                 WriteBuffer(ref m_GameStateParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetGameStateParam(parameterName, parameterValue.ToString());
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game state string parameter.
+        /// </summary>
+        public void GameStateParamJson(string parameterName, StringBuilder parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingGameState) == 0) {
+                throw new InvalidOperationException("Game State not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBufferUnescaped(ref m_GameStateParamsBuffer, parameterName, parameterValue);
             }
 
             if (ModuleReady(ModuleId.Firebase)) {
@@ -1159,6 +1227,23 @@ namespace OGD {
         /// <summary>
         /// Writes a custom user data string parameter.
         /// </summary>
+        public void UserDataParamJson(string parameterName, string parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingUserData) == 0) {
+                throw new InvalidOperationException("User Data not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBufferUnescaped(ref m_UserDataParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetUserDataParam(parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom user data string parameter.
+        /// </summary>
         public void UserDataParam(string parameterName, StringBuilder parameterValue) {
             if ((m_StatusFlags & StatusFlags.WritingUserData) == 0) {
                 throw new InvalidOperationException("User Data not open for writing");
@@ -1166,6 +1251,23 @@ namespace OGD {
 
             if (ModuleReady(ModuleId.OpenGameData)) {
                 WriteBuffer(ref m_UserDataParamsBuffer, parameterName, parameterValue);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetUserDataParam(parameterName, parameterValue.ToString());
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom user data string parameter.
+        /// </summary>
+        public void UserDataParamJson(string parameterName, StringBuilder parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingUserData) == 0) {
+                throw new InvalidOperationException("User Data not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBufferUnescaped(ref m_UserDataParamsBuffer, parameterName, parameterValue);
             }
 
             if (ModuleReady(ModuleId.Firebase)) {
@@ -1626,7 +1728,7 @@ namespace OGD {
             string uriString = charBuff.ToString();
             try {
                 return new Uri(uriString);
-            } catch(UriFormatException formatException) {
+            } catch(UriFormatException _) {
                 UnityEngine.Debug.LogErrorFormat("[OGDLog] Failed to parse '{0}' to a URI", uriString);
                 return null;
             }
@@ -1655,6 +1757,14 @@ namespace OGD {
             buffer.Write("\",");
         }
 
+        static private void WriteBufferUnescaped(ref FixedCharBuffer buffer, string parameterName, string parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":");
+            buffer.Write(parameterValue);
+            buffer.Write(",");
+        }
+
         static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, bool parameterValue) {
             buffer.Write('"');
             buffer.Write(parameterName);
@@ -1669,6 +1779,14 @@ namespace OGD {
             buffer.Write("\":\"");
             OGDLogUtils.EscapeJSON(ref buffer, parameterValue);
             buffer.Write("\",");
+        }
+
+        static private void WriteBufferUnescaped(ref FixedCharBuffer buffer, string parameterName, StringBuilder parameterValue) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":");
+            buffer.Write(parameterValue);
+            buffer.Write(",");
         }
 
         static private void WriteBuffer(ref FixedCharBuffer buffer, string parameterName, long parameterValue) {

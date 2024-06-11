@@ -59,6 +59,7 @@ m_Logger.BeginEvent("eventName");
     m_Logger.EventParam("anotherParam", 4.5f) // floating point parameters...
     m_Logger.EventParam("someStringParam", "blah"); // string parameters...
     m_Logger.EventParam("isDoingStuff", true); // and boolean parameters
+    m_Logger.EventParamJson("subObject", "{\"someSubObjectField\":5}");
 m_Logger.SubmitEvent(); // this will then submit the event.
 ```
 
@@ -70,6 +71,7 @@ using(EventScope evt = m_Logger.NewEvent("eventName")) {
     evt.Param("anotherParam", 4.5f);
     evt.Param("someStringParam", "blah");
     evt.Param("isDoingStuff", true);
+    evt.Json("subObject", "{\"someSubObjectField\":5}");
 } // upon exiting this block, the event will be automatically submitted
 ```
 
@@ -99,6 +101,7 @@ To set the shared `game_state` parameter, you can do so in one of two ways.
 m_Logger.BeginGameState();
     m_Logger.GameStateParam("shared1", 2);
     m_Logger.GameStateParam("anotherName", "no-job");
+    m_Logger.GameStateParamJson("shared2", "{\"somethingElse\":5}");
 m_Logger.SubmitGameState();
 ```
 
@@ -108,6 +111,7 @@ You can also using a `GameStateScope` similar to how the `EventScope` functions.
 using(GameStateScope scope = m_Logger.OpenGameState()) {
     scope.Param("anotherName", "some-job");
     scope.Param("shared1", 467);
+    scope.Json("shared2", "{\"somethingElse\":5}");
 }
 ```
 
