@@ -11,6 +11,7 @@ Unity package for logging with Field Day's OpenGameData servers.
 5. Updated survey support (4 April 2023)
 6. Support for `game_state` and `user_data` as arbitrary json (14 May 2024)
 7. Support for mirroring events to a separate endpoint (21 May 2024)
+8. Updated surveys to support alternate layouts and branching (26 Nov 2024)
 
 ## Setup
 
@@ -184,10 +185,24 @@ Survey packages are `.json` files. Survey packages must follow the following sch
             "header": "A Survey Header", // text to display at the top of the survey,
             "pages": [ // array of survey pages
                 {
+                    "subheader": "Some Words", // text to display at the top of this survey page, underneath the header
                     "items": [ // array of survey questions
                         {
+                            "useVerticalLayout": false, // if set, responses will be laid out vertically (if supported)
                             "prompt": "This is a survey question. Can you understand it?", // the displayed question text
-                            "responses": [ "Yes", "No", "What?" ] // array of possible responses for the player to pick between
+                            "responses": [ "Yes", "No", "What?" ], // array of possible responses for the player to pick between
+                            "responseFlags": [ "said-yes", "said-no", "" ] // array of internal flags to set, corresponding to each response. used for selectively skipping pages
+                        }
+                    ]
+                },
+                {
+                    "type": "likert-scales", // page type. custom value, exposed for the purpose of reconfiguring layouts during OnPageLayout
+                    "subheader": "1- Completely False, 5- Definitely True",
+                    "skipIf": [ "said-yes", "!said-no" ], // array of internal flags. if any are set (or, if a ! character precedes it, NOT set), this page will be skipped
+                    "items": [
+                        {
+                            "type": "likert",
+                            ...
                         }
                     ]
                 }
@@ -236,6 +251,8 @@ mySurveyPanel.OnLoaded // callback for when survey data is available, prior to d
 mySurveyPanel.OpenPageAnim // if set, this coroutine will execute when a new page is being displayed
 mySurveyPanel.ClosePageAnim // if set, this coroutine will execute when a new page is queued up to transition the current page out
 mySurveyPanel.FinishAnim // if set, this coroutine will execute upon the final survey page being submitted
+mySurveyPanel.OnPageLayout // callback for when the survey page is loading, before questions are loaded
+mySurveyPanel.OnPopulateQuestion // callback for when a question is being loaded
 mySurveyPanel.OnFinished // callback for when the survey is completed and closed
 mySurveyPanel.OnNextButtonState // callback for when the next/finish button is completed
 ```

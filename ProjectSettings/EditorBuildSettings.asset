@@ -9,6 +9,9 @@ EditorBuildSettings:
     path: Assets/Example/FirebaseLoggingExample.unity
     guid: e1e986e053240db4897440a4553d3e68
   - enabled: 1
+    path: Assets/Example/SurveyExample.unity
+    guid: ffaa06aef75b7584f855fe4cf9d3eb87
+  - enabled: 1
     path: Assets/Example/BasicLoggingExample.unity
     guid: af88e4e52035ff741a8d757325a8063a
   m_configObjects: {}

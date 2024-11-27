@@ -8,6 +8,7 @@ public class SurveyExample : MonoBehaviour {
     public int clientLogVersion;
     public SurveyPanel SurveyPrefab;
     public TextAsset SurveyText;
+    public string SurveyId = "example";
 
     private OGDLog m_Logger;
     private OGDSurvey m_Survey;
@@ -23,7 +24,7 @@ public class SurveyExample : MonoBehaviour {
         m_Survey = new OGDSurvey(SurveyPrefab, m_Logger);
         m_Survey.LoadSurveyPackageFromString(SurveyText.text);
 
-        yield return m_Survey.DisplaySurveyAndWait("example");
+        yield return m_Survey.DisplaySurveyAndWait(SurveyId);
 
         Debug.Log("Finished survey!");
     }

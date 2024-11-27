@@ -45,11 +45,17 @@ namespace OGD
                 ToggleCache cache = m_InstantiatedToggles[i];
                 if (cache.Toggle.isOn) {
                     response.Response = cache.Label.text;
+                    if (m_CurrentQuestion.ResponseFlags != null && i < m_CurrentQuestion.ResponseFlags.Length) {
+                        response.Flag = m_CurrentQuestion.ResponseFlags[i];
+                    } else {
+                        response.Flag = null;
+                    }
                     return response;
                 }
             }
 
             response.Response = null;
+            response.Flag = null;
             return response;
         }
 
@@ -89,6 +95,11 @@ namespace OGD
                 prompt = string.Format(m_PrefixFormat, questionIndex + 1) + prompt;
             }
             m_PromptText.SetText(prompt);
+
+            AxisLayoutGroup asAxis = m_ToggleLayout as AxisLayoutGroup;
+            if (asAxis) {
+                asAxis.IsVertical = question.UseVerticalLayout;
+            }
 
             PrepareResponses(question.Responses.Length, responsePrefab);
             for(int i = 0; i < question.Responses.Length; i++) {

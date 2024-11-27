@@ -28,6 +28,7 @@ namespace OGD
 
         [Header("Header")]
         [SerializeField] private TMP_Text m_Header = null;
+        [SerializeField] private TMP_Text m_Subheader = null;
 
         [Header("Questions")]
         [SerializeField] private LayoutGroup m_QuestionLayout = null;
@@ -50,6 +51,8 @@ namespace OGD
 
         public delegate void CallbackDelegate(SurveyPanel panel);
         public delegate IEnumerator AnimationDelegate(SurveyPanel panel);
+        public delegate void PageLayoutDelegate(SurveyPanel panel, SurveyPage page);
+        public delegate void PopulateQuestionDelegate(SurveyQuestionDisplay question, SurveyQuestion data, SurveyPage page);
 
         /// <summary>
         /// Called when data is loaded.
@@ -72,6 +75,16 @@ namespace OGD
         public AnimationDelegate FinishedAnim;
 
         /// <summary>
+        /// Delegate invoked when before page layout.
+        /// </summary>
+        public PageLayoutDelegate OnPageLayout;
+
+        /// <summary>
+        /// Delegate invoked when a question display is populated.
+        /// </summary>
+        public PopulateQuestionDelegate OnPopulateQuestion;
+
+        /// <summary>
         /// Function invoked when the next/finish button changes state.
         /// </summary>
         public Action<bool> OnNextButtonState;
@@ -91,6 +104,7 @@ namespace OGD
         [NonSerialized] private List<SurveyQuestionDisplay> m_InstantiatedQuestions = new List<SurveyQuestionDisplay>(4);
         [NonSerialized] private int m_QuestionsInUse = 0;
         [NonSerialized] private List<int> m_PageOffsets = new List<int>(4);
+        [NonSerialized] private HashSet<string> m_Flags = new HashSet<string>();
         private StringBuilder m_CachedBuilder = new StringBuilder(256);
         private Action m_OnClosed;
 
@@ -117,6 +131,13 @@ namespace OGD
         /// </summary>
         public TMP_Text HeaderLabel {
             get { return m_Header; }
+        }
+
+        /// <summary>
+        /// Subheader label.
+        /// </summary>
+        public TMP_Text SubheaderLabel {
+            get { return m_Subheader; }
         }
 
         /// <summary>
@@ -148,6 +169,7 @@ namespace OGD
             m_Header.SetText(data.Header);
 
             m_AccumulatedResponses.Clear();
+            m_Flags.Clear();
             GeneratePageQuestionOffsets(data);
             OnLoaded?.Invoke(this);
 
@@ -174,6 +196,8 @@ namespace OGD
 
             SurveyPage page = m_CurrentSurvey.Pages[pageIndex];
 
+            OnPageLayout?.Invoke(this, page);
+
             if (m_PageCountDisplay != null) {
                 if (totalPages > 1) {
                     m_PageCountDisplay.gameObject.SetActive(true);
@@ -187,12 +211,22 @@ namespace OGD
             m_ContinueButton.gameObject.SetActive(!lastPage);
             m_FinishButton.gameObject.SetActive(lastPage);
 
+            if (m_Subheader) {
+                if (string.IsNullOrEmpty(page.SubHeader)) {
+                    m_Subheader.gameObject.SetActive(false);
+                } else {
+                    m_Subheader.gameObject.SetActive(true);
+                    m_Subheader.SetText(page.SubHeader);
+                }
+            }
+
             PrepareQuestions(page.Questions.Length);
 
             int questionIndexOffset = pageIndex > 0 ? m_PageOffsets[pageIndex - 1] : 0;
 
             for(int i = 0; i < page.Questions.Length; i++) {
                 m_InstantiatedQuestions[i].LoadQuestion(page.Questions[i], i + questionIndexOffset, m_ResponsePrefab);
+                OnPopulateQuestion?.Invoke(m_InstantiatedQuestions[i], page.Questions[i], page);
             }
 
             RecursiveLayoutRebuild((RectTransform) m_QuestionLayout.transform);
@@ -242,7 +276,10 @@ namespace OGD
 
         private void OnNextClicked() {
             SubmitPage();
-            m_CurrentPageIndex++;
+
+            do {
+                m_CurrentPageIndex++;
+            } while (m_CurrentPageIndex < m_CurrentSurvey.Pages.Length && ShouldSkipPageAtIndex(m_CurrentPageIndex));
 
             KillOngoingRoutine();
 
@@ -263,6 +300,29 @@ namespace OGD
                     LoadPage(m_CurrentPageIndex);
                 }
             }
+        }
+
+        private bool ShouldSkipPageAtIndex(int index) {
+            SurveyPage page = m_CurrentSurvey.Pages[index];
+            string[] conditions = page.SkipConditions;
+            if (conditions == null || conditions.Length == 0) {
+                return false;
+            }
+
+            for(int i = 0; i < conditions.Length; i++) {
+                bool pass;
+                string condition = conditions[i];
+                if (condition.StartsWith("!")) {
+                    pass = !m_Flags.Contains(condition.Substring(1));
+                } else {
+                    pass = m_Flags.Contains(condition);
+                }
+                if (pass) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void FlushData() {
@@ -287,6 +347,10 @@ namespace OGD
                 SurveyQuestionResponse response = m_InstantiatedQuestions[i].GetResponse();
                 if (!string.IsNullOrEmpty(response.Response)) {
                     m_AccumulatedResponses.Add(response);
+                }
+
+                if (!string.IsNullOrEmpty(response.Flag)) {
+                    m_Flags.Add(response.Flag);
                 }
             }
         }

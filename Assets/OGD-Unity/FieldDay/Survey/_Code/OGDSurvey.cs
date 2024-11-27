@@ -76,6 +76,13 @@ namespace OGD
             LoadSurveyPackageFromString(packageJSONFile.text);
         }
 
+        /// <summary>
+        /// Currently loaded survey package.
+        /// </summary>
+        public SurveyPackage CurrentPackage {
+            get { return m_CurrentSurveyPackage; }
+        }
+
         #endregion // Package Management
 
         #region Survey Display

@@ -152,12 +152,36 @@ namespace OGD
     [Serializable]
     public class SurveyPage {
         [SerializeField] private SurveyQuestion[] items;
+        [SerializeField] private string subheader;
+        [SerializeField] private string type;
+        [SerializeField] private string[] skipIf;
 
         /// <summary>
         /// Array of questions.
         /// </summary>
         public SurveyQuestion[] Questions {
             get { return items; }
+        }
+
+        /// <summary>
+        /// Array of questions.
+        /// </summary>
+        public string SubHeader {
+            get { return subheader; }
+        }
+
+        /// <summary>
+        /// Page type.
+        /// </summary>
+        public string Type {
+            get { return type; }
+        }
+
+        /// <summary>
+        /// If any of these flags are set, this page is skipped.
+        /// </summary>
+        public string[] SkipConditions {
+            get { return skipIf; }
         }
     }
 
@@ -169,6 +193,8 @@ namespace OGD
         [SerializeField] private string prompt;
         [SerializeField] private string type;
         [SerializeField] private string[] responses;
+        [SerializeField] private string[] responseFlags;
+        [SerializeField] private bool useVerticalLayout;
 
         /// <summary>
         /// Prompt string to display to the user.
@@ -178,7 +204,7 @@ namespace OGD
         }
 
         /// <summary>
-        /// Question type. Null/empty string uses default multiple choice.
+        /// Question type.
         /// </summary>
         public string Type {
             get { return type; }
@@ -190,6 +216,21 @@ namespace OGD
         public string[] Responses {
             get { return responses; }
         }
+
+        /// <summary>
+        /// Internal flags to set for each response.
+        /// Used for branching.
+        /// </summary>
+        public string[] ResponseFlags {
+            get { return responseFlags; }
+        }
+
+        /// <summary>
+        /// If set, responses will be laid out vertically.
+        /// </summary>
+        public bool UseVerticalLayout {
+            get { return useVerticalLayout; }
+        }
     }
 
     /// <summary>
@@ -198,5 +239,6 @@ namespace OGD
     public struct SurveyQuestionResponse {
         public string Prompt;
         public string Response;
+        public string Flag;
     }
 }
