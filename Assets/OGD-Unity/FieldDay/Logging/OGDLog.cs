@@ -12,6 +12,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.IO;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -19,6 +20,10 @@ using UnityEngine.Networking;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 #endif // HAS_UPLOAD_NATIVE_ARRAY
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 [assembly: InternalsVisibleTo("OGD.Survey")]
 
@@ -133,6 +138,7 @@ namespace OGD {
             Base64Encode = 0x02,
             SkipOGDUpload = 0x04,
             SkipFirebaseUpload = 0x08,
+            UseValidationFile = 0x10,
 
             Default = Base64Encode
         }
@@ -195,6 +201,7 @@ namespace OGD {
         private SessionConsts m_SessionConsts;
         private string m_MirroringURL;
         private string m_MirroringAppIdOverride;
+        private string m_ValidationFilePath;
         private SchedulingConfig m_SchedulingConfig;
 
         // state
@@ -216,6 +223,7 @@ namespace OGD {
         private readonly StringBuilder m_EventStream = new StringBuilder(EventStreamMinimumSize);
         private StreamState m_MainStreamState;
         private StreamState m_MirrorStreamState;
+        private StreamState m_ValidationFileStreamState;
 
         // custom event parameter json builder - this holds the custom event parameters
         private unsafe char* m_DataBufferHead;
@@ -485,6 +493,17 @@ namespace OGD {
                 SetSettings(m_Settings & ~SettingsFlags.Debug);
             }
         }
+        
+        /// <summary>
+        /// Sets the UseValidationFile settings flag.
+        /// </summary>
+        public void SetUseValidationFile(bool useValidate) {
+            if (useValidate) {
+                SetSettings(m_Settings | SettingsFlags.UseValidationFile);
+            } else {
+                SetSettings(m_Settings & ~SettingsFlags.UseValidationFile);
+            }
+        }
 
         /// <summary>
         /// Resets the session id to a new session.
@@ -544,6 +563,33 @@ namespace OGD {
                     RemoveConfirmedUploadedEvents(false);
                 }
             }
+        }
+        
+
+        /// <summary>
+        /// Sets the logger to send log output to a local validation file.
+        /// </summary>
+        public void ConfigureLocalValidation() {
+            string basePath;
+#if UNITY_EDITOR
+            basePath = "Assets";
+            if (!AssetDatabase.IsValidFolder("Assets/OGD")) {
+                AssetDatabase.CreateFolder("Assets", "OGD");
+            }
+            if (!AssetDatabase.IsValidFolder("Assets/OGD/Validation")) {
+                AssetDatabase.CreateFolder("Assets/OGD", "Validation");
+            }
+            if (!AssetDatabase.IsValidFolder("Assets/OGD/Validation" + m_SessionConsts.SessionId)) {
+                AssetDatabase.CreateFolder("Assets/OGD/Validation", m_SessionConsts.SessionId.ToString());
+            }
+#else
+            basePath = Application.persistentDataPath;
+            Directory.CreateDirectory(basePath + "/OGD/Validation/" + m_SessionConsts.SessionId);
+#endif
+            m_ValidationFilePath = basePath + "/OGD/Validation/" + m_SessionConsts.SessionId + "/validation.txt";
+            m_Settings |= SettingsFlags.UseValidationFile;
+            m_ValidationFileStreamState.CleanActivate();
+            RemoveConfirmedUploadedEvents(false);
         }
 
         /// <summary>
@@ -1364,16 +1410,30 @@ namespace OGD {
 
             FinishEventData();
             ResetScheduling();
+            
+            if ((m_Settings & SettingsFlags.UseValidationFile) != 0) {
+                // write to validation file before server upload
+                if (m_ValidationFileStreamState.ReadyForSend() && TryGenerateValidationPacket("validation", m_ValidationFileStreamState.BaseOffset, out string validationPacket, out int charsProcessed)) {
+                    m_ValidationFileStreamState.SentOffset = m_ValidationFileStreamState.BaseOffset;
+                    m_ValidationFileStreamState.SentLength = charsProcessed;
+
+                    HandleValidationResult(ref m_ValidationFileStreamState, "validation", validationPacket);
+                }
+            }
 
             if ((m_Settings & SettingsFlags.SkipOGDUpload) != 0) {
-                if ((m_Settings & SettingsFlags.Debug) != 0) {
+                if ((m_Settings & SettingsFlags.Debug) != 0)
+                {
                     Console.WriteLine("[OGDLog] Skipping server upload");
                 }
                 m_MainStreamState = default;
                 m_MirrorStreamState = default;
+                m_ValidationFileStreamState = default;
                 m_EventStream.Clear();
                 return;
             }
+
+
 
             if (ModuleReady(ModuleId.OpenGameData)) {
                 UploadPacket mainPacket;
@@ -1503,8 +1563,29 @@ namespace OGD {
             return request;
         }
 
-        private void HandleOGDPostResponse(AsyncOperation op) {
-            UnityWebRequest request = ((UnityWebRequestAsyncOperation) op).webRequest;
+        /// <summary>
+        /// Attempts to generate a packet of events for local validation.
+        /// </summary>
+        private bool TryGenerateValidationPacket(string debugTag, int offset, out string packet, out int length) {
+            length = m_EventStream.Length - offset;
+            if (length <= 0) {
+                packet = default;
+                return false;
+            }
+
+            // since it's not enclosed with array brackets, we offset it by 1
+            int eventStreamCharLength = length + 1;
+            m_EventStream.CopyTo(offset, m_EventStreamEncodingChars, 1, eventStreamCharLength - 1); // also it ends with a comma so we can ignore copying that
+            m_EventStreamEncodingChars[0] = '[';
+            m_EventStreamEncodingChars[eventStreamCharLength - 1] = ']';
+            packet = new String(m_EventStreamEncodingChars, 0, eventStreamCharLength);
+
+            return true;
+        }
+
+        private void HandleOGDPostResponse(AsyncOperation op)
+        {
+            UnityWebRequest request = ((UnityWebRequestAsyncOperation)op).webRequest;
             HandleBasePostResponse(request, ref m_MainStreamState, EndpointType.Main, "main");
         }
 
@@ -1585,6 +1666,44 @@ namespace OGD {
 
             return resultType;
         }
+        
+        private UploadResultType HandleValidationResult(ref StreamState state, string debugTag, string packet) {
+            UploadResultType resultType = UploadResultType.Success;
+
+            try {
+                using (StreamWriter sw = new StreamWriter(m_ValidationFilePath, append: true)) {
+                    sw.WriteLine(packet);
+                    sw.Flush();
+                    sw.Close();
+                }
+            } catch {
+                resultType = UploadResultType.Failure;
+            }
+
+            if (resultType == UploadResultType.Success) {
+                state.FailureCounter = 0;
+                state.BaseOffset += state.SentLength;
+            } else {
+                state.FailureCounter += (int) resultType;
+            }
+
+            state.SentLength = 0;
+            state.SentOffset = 0;
+
+            RemoveConfirmedUploadedEvents(true);
+            m_StatusFlags &= ~StatusFlags.Flushing;
+
+            // if we still have events to submit, let's flush again
+            if (m_EventStream.Length > 0) {
+                if (resultType == UploadResultType.Success) {
+                    Flush();
+                } else {
+                    TryScheduleFlush(m_SchedulingConfig.FlushFailureDelay + (state.FailureCounter - 1) * m_SchedulingConfig.RepeatedFailureDelay);
+                }
+            }
+
+            return resultType;
+        }
 
         static private UploadResultType GetUploadResult(UnityWebRequest request) {
             long code = request.responseCode;
@@ -1634,6 +1753,11 @@ namespace OGD {
                         Console.WriteLine("[OGDLog] Erased {0} flushed characters from stream", end);
                     }
                 }
+            }
+
+            if ((m_Settings & SettingsFlags.UseValidationFile) != 0) {
+                m_ValidationFileStreamState.BaseOffset -= end;
+                m_ValidationFileStreamState.SentOffset -= end;
             }
         }
 

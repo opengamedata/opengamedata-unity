@@ -12,6 +12,7 @@ Unity package for logging with Field Day's OpenGameData servers.
 6. Support for `game_state` and `user_data` as arbitrary json (14 May 2024)
 7. Support for mirroring events to a separate endpoint (21 May 2024)
 8. Updated surveys to support alternate layouts and branching (26 Nov 2024)
+9. Support for saving events to a local file for validation (2 July 2025)
 
 ## Setup
 
@@ -163,6 +164,10 @@ Logging to Firebase for Android or iOS will require an additional Unity package.
 ### Mirroring
 
 You can mirror your OpenGameData events to a secondary endpoint by calling `OGDLog.ConfigureMirroring()` with the given endpoint url as a string. You can optionally pass in an app id to use as an override for the endpoint.
+
+### Validation Files
+
+You can record your OpenGameData events to a local file for validation by calling `OGDLog.ConfigureLocalValidation()` during setup. In builds, this file will be stored in the program's persistent data path under `OGD/Validation/[sessionId]/validation.txt`. In the Unity Editor, the path is `Assets/OGD/Validation/[sessionId]/validation.txt`.
 
 ## Debugging
 
