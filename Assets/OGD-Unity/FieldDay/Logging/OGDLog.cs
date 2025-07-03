@@ -389,6 +389,22 @@ namespace OGD {
                 #endif // HAS_UPLOAD_NATIVE_ARRAY
             }
 
+            if ((m_Settings & SettingsFlags.UseValidationFile) != 0) {
+                // remove last comma and add closing bracket
+                try {
+                    using (var fs = new FileStream(m_ValidationFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite)) {
+                        fs.SetLength(fs.Length - 1);
+                        fs.Close();
+                    }
+
+                    using (StreamWriter sw = new StreamWriter(m_ValidationFilePath, append: true)) {
+                        sw.Write(']');
+                        sw.Flush();
+                        sw.Close();
+                    }
+                } catch { }
+            }
+
             if (m_FlushDispatcher) {
                 GameObject.Destroy(m_FlushDispatcher.gameObject);
                 m_FlushDispatcher = null;
@@ -589,6 +605,16 @@ namespace OGD {
             m_ValidationFilePath = basePath + "/OGD/Validation/" + m_SessionConsts.SessionId + "/validation.txt";
             m_Settings |= SettingsFlags.UseValidationFile;
             m_ValidationFileStreamState.CleanActivate();
+
+            // Add initial bracket
+            try {
+                using (StreamWriter sw = new StreamWriter(m_ValidationFilePath, append: true)) {
+                    sw.Write('[');
+                    sw.Flush();
+                    sw.Close();
+                }
+            } catch { }
+
             RemoveConfirmedUploadedEvents(false);
         }
 
@@ -1573,11 +1599,8 @@ namespace OGD {
                 return false;
             }
 
-            // since it's not enclosed with array brackets, we offset it by 1
-            int eventStreamCharLength = length + 1;
-            m_EventStream.CopyTo(offset, m_EventStreamEncodingChars, 1, eventStreamCharLength - 1); // also it ends with a comma so we can ignore copying that
-            m_EventStreamEncodingChars[0] = '[';
-            m_EventStreamEncodingChars[eventStreamCharLength - 1] = ']';
+            int eventStreamCharLength = length;
+            m_EventStream.CopyTo(offset, m_EventStreamEncodingChars, 0, eventStreamCharLength); // preserve comma
             packet = new String(m_EventStreamEncodingChars, 0, eventStreamCharLength);
 
             return true;
@@ -1672,7 +1695,7 @@ namespace OGD {
 
             try {
                 using (StreamWriter sw = new StreamWriter(m_ValidationFilePath, append: true)) {
-                    sw.WriteLine(packet);
+                    sw.Write(packet);
                     sw.Flush();
                     sw.Close();
                 }

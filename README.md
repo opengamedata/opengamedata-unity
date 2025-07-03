@@ -13,6 +13,7 @@ Unity package for logging with Field Day's OpenGameData servers.
 7. Support for mirroring events to a separate endpoint (21 May 2024)
 8. Updated surveys to support alternate layouts and branching (26 Nov 2024)
 9. Support for saving events to a local file for validation (2 July 2025)
+10. Local validation file follows JSON formatting (3 July 2025)
 
 ## Setup
 
