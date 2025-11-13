@@ -345,12 +345,14 @@ namespace OGD
         private void SubmitPage() {
             for(int i = 0; i < m_QuestionsInUse; i++) {
                 SurveyQuestionResponse response = m_InstantiatedQuestions[i].GetResponse();
-                if (!string.IsNullOrEmpty(response.Response)) {
+                if (response.Responses != null) {
                     m_AccumulatedResponses.Add(response);
                 }
 
-                if (!string.IsNullOrEmpty(response.Flag)) {
-                    m_Flags.Add(response.Flag);
+                if (response.Flags != null && response.Flags.Length > 0) {
+                    foreach(var flag in response.Flags) {
+                        m_Flags.Add(flag);
+                    }
                 }
             }
         }
@@ -373,8 +375,20 @@ namespace OGD
             for(int i = 0; i < m_AccumulatedResponses.Count; i++) {
                 SurveyQuestionResponse response = m_AccumulatedResponses[i];
                 m_CachedBuilder.Append("{\"prompt\":\"").EscapeJSON(response.Prompt).Append("\",")
-                    .Append("\"response\":\"").EscapeJSON(response.Response).Append("\"")
-                    .Append("},");
+                    .Append("\"response\":");
+                if (response.Responses.Length > 1 || response.Type != SurveyPromptTypes.Default) {
+                    m_CachedBuilder.Append('[');
+                    foreach(var responseText in response.Responses) {
+                        m_CachedBuilder.Append('\"').EscapeJSON(responseText).Append("\",");
+                    }
+                    OGDLogUtils.TrimEnd(m_CachedBuilder, ',');
+                    m_CachedBuilder.Append(']');
+                } else if (response.Responses.Length == 0) {
+                    m_CachedBuilder.Append("null");
+                } else {
+                    m_CachedBuilder.Append('\"').EscapeJSON(response.Responses[0]).Append('\"');
+                }
+                m_CachedBuilder.Append("},");
             }
 
             OGDLogUtils.TrimEnd(m_CachedBuilder, ',');

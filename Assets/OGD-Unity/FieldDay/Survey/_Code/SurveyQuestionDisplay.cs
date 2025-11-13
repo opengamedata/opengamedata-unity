@@ -13,6 +13,12 @@ namespace OGD
             public TMP_Text Label;
         }
 
+        private enum MultiSelectMode {
+            None,
+            Normal,
+            Nullable
+        }
+
         #region Inspector
 
         [Header("Prompt")]
@@ -32,6 +38,10 @@ namespace OGD
         [NonSerialized] private List<ToggleCache> m_InstantiatedToggles = new List<ToggleCache>(8);
         [NonSerialized] private int m_TogglesInUse = 0;
         [NonSerialized] private bool m_Populating;
+        [NonSerialized] private MultiSelectMode m_MultiSelect;
+
+        static private List<string> s_ResponseTextWorkList = new List<string>(8);
+        static private List<string> s_ResponseFlagsWorkList = new List<string>(8);
 
         /// <summary>
         /// Retrieves the current response.
@@ -39,23 +49,27 @@ namespace OGD
         public SurveyQuestionResponse GetResponse() {
             SurveyQuestionResponse response;
             response.Prompt = m_CurrentQuestion.Prompt;
-            
-            // NOTE: will need modification to handle questions with multiple responses.
+            response.Type = m_CurrentQuestion.Type;
+
             for(int i = 0; i < m_TogglesInUse; i++) {
                 ToggleCache cache = m_InstantiatedToggles[i];
                 if (cache.Toggle.isOn) {
-                    response.Response = cache.Label.text;
+                    s_ResponseTextWorkList.Add(cache.Label.text);
                     if (m_CurrentQuestion.ResponseFlags != null && i < m_CurrentQuestion.ResponseFlags.Length) {
-                        response.Flag = m_CurrentQuestion.ResponseFlags[i];
-                    } else {
-                        response.Flag = null;
+                        s_ResponseFlagsWorkList.Add(m_CurrentQuestion.ResponseFlags[i]);
                     }
-                    return response;
+                    if (m_MultiSelect == MultiSelectMode.None) {
+                        break;
+                    }
                 }
             }
 
-            response.Response = null;
-            response.Flag = null;
+            response.Responses = s_ResponseTextWorkList.ToArray();
+            response.Flags = s_ResponseFlagsWorkList.ToArray();
+
+            s_ResponseFlagsWorkList.Clear();
+            s_ResponseTextWorkList.Clear();
+
             return response;
         }
 
@@ -63,6 +77,10 @@ namespace OGD
         /// Returns if the player has input an answer.
         /// </summary>
         public bool HasAnswer() {
+            if (m_MultiSelect == MultiSelectMode.Nullable) {
+                return true;
+            }
+
             for(int i = 0; i < m_TogglesInUse; i++) {
                 if (m_InstantiatedToggles[i].Toggle.isOn) {
                     return true;
@@ -77,7 +95,6 @@ namespace OGD
                 return;
             }
 
-            // NOTE: will need to be modified for questions with multiple allowed responses
             m_ToggleGroup.allowSwitchOff = false;
             
             if (state) {
@@ -89,6 +106,14 @@ namespace OGD
 
         public void LoadQuestion(SurveyQuestion question, int questionIndex, Toggle responsePrefab) {
             m_CurrentQuestion = question;
+
+            if (question.Type == SurveyPromptTypes.MultiSelect) {
+                m_MultiSelect = MultiSelectMode.Normal;
+            } else if (question.Type == SurveyPromptTypes.MultiSelectNullable) {
+                m_MultiSelect = MultiSelectMode.Nullable;
+            } else {
+                m_MultiSelect = MultiSelectMode.None;
+            }
 
             string prompt = question.Prompt;
             if (!string.IsNullOrEmpty(m_PrefixFormat)) {
@@ -118,13 +143,20 @@ namespace OGD
                 cache.Toggle = Instantiate(prefab, m_ToggleLayout.transform);
                 cache.Label = cache.Toggle.GetComponentInChildren<TMP_Text>();
                 cache.Toggle.onValueChanged.AddListener(OnToggleSet);
-                cache.Toggle.group = m_ToggleGroup;
                 m_InstantiatedToggles.Add(cache);
             }
 
-            for(int i = 0; i < m_InstantiatedToggles.Count; i++) {
+            ToggleGroup targetGroup;
+            if (m_MultiSelect != MultiSelectMode.None) {
+                targetGroup = null;
+            } else {
+                targetGroup = m_ToggleGroup;
+            }
+
+            for (int i = 0; i < m_InstantiatedToggles.Count; i++) {
                 m_InstantiatedToggles[i].Toggle.gameObject.SetActive(i < capacity);
-#if UNITY_2019_1_OR_NEWER                
+                m_InstantiatedToggles[i].Toggle.group = targetGroup;
+#if UNITY_2019_1_OR_NEWER
                 m_InstantiatedToggles[i].Toggle.SetIsOnWithoutNotify(false);
 #else
                 m_InstantiatedToggles[i].Toggle.isOn = false;

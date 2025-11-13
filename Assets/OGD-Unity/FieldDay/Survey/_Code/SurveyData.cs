@@ -207,7 +207,7 @@ namespace OGD
         /// Question type.
         /// </summary>
         public string Type {
-            get { return type; }
+            get { return type ?? SurveyPromptTypes.Default; }
         }
 
         /// <summary>
@@ -238,7 +238,14 @@ namespace OGD
     /// </summary>
     public struct SurveyQuestionResponse {
         public string Prompt;
-        public string Response;
-        public string Flag;
+        public string Type;
+        public string[] Responses;
+        public string[] Flags;
+    }
+
+    static public class SurveyPromptTypes {
+        public const string Default = "";
+        public const string MultiSelect = "multi";
+        public const string MultiSelectNullable = "multi-nullable";
     }
 }

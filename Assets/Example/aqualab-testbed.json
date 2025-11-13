@@ -9,13 +9,15 @@
                     "items": [
                         {
                             "prompt": "Are you playing Wake at home or school?",
+							"type": "multi",
                             "responses": [
                                 "Home", "School"
                             ]
                         },
                         {
                             "prompt": "Is this game connected to a larger educational unit or lesson?",
-                            "responses": [
+                            "type": "multi-nullable",
+							"responses": [
                                 "Yes", "No", "Unsure"
                             ]
                         }
