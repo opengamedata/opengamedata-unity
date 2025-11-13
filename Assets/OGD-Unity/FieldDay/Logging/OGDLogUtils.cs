@@ -507,19 +507,9 @@ namespace OGD {
         /// <summary>
         /// Writes a floating point value to a StringBuilder without allocating GC memory.
         /// </summary>
-        static internal unsafe StringBuilder AppendNumber(StringBuilder builder, double value, int padLeft, int precision)
-        {
-            if (double.IsNaN(value))
-            {
-                return builder.Append("NaN");
-            }
-            else if (double.IsPositiveInfinity(value))
-            {
-                return builder.Append("Infinity");
-            }
-            else if (double.IsNegativeInfinity(value))
-            {
-                return builder.Append("-Infinity");
+        static internal unsafe StringBuilder AppendNumber(StringBuilder builder, double value, int padLeft, int precision) {
+            if (double.IsNaN(value) || double.IsInfinity(value)) {
+                return builder.Append("null");
             }
 
             if (value < 0)
@@ -578,19 +568,9 @@ namespace OGD {
         /// </summary>
         static internal unsafe void WriteNumber(ref FixedCharBuffer builder, double value, int padLeft, int precision)
         {
-            if (double.IsNaN(value))
+            if (double.IsNaN(value) || double.IsInfinity(value))
             {
-                builder.Write("NaN");
-                return;
-            }
-            else if (double.IsPositiveInfinity(value))
-            {
-                builder.Write("Infinity");
-                return;
-            }
-            else if (double.IsNegativeInfinity(value))
-            {
-                builder.Write("-Infinity");
+                builder.Write("null");
                 return;
             }
 
@@ -721,7 +701,18 @@ namespace OGD {
         static internal StackTraceLevelScope DisableWarningStackTrace() {
             return new StackTraceLevelScope(UnityEngine.LogType.Warning, UnityEngine.StackTraceLogType.None);
         }
-    }
+
+#if UNITY_WEBGL
+        static internal void SyncWebFiles() {
+#if !UNITY_EDITOR
+            JS_FileSystem_Sync();
+#endif // !UNITY_EDITOR
+        }
+
+        [DllImport("__Internal")]
+        static private extern void JS_FileSystem_Sync();
+#endif // UNITY_WEBGL
+        }
 
     /// <summary>
     /// Fixed character buffer.

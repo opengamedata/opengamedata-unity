@@ -8,6 +8,7 @@ public class BasicLoggingExample : MonoBehaviour {
     public int appVersion;
     public int clientLogVersion;
     public bool debugMode = true;
+    public bool validationMode = false;
 
     private OGDLog m_Logger;
 
@@ -15,6 +16,10 @@ public class BasicLoggingExample : MonoBehaviour {
         m_Logger = new OGDLog(appId, appVersion);
         m_Logger.SetUserId("default");
         m_Logger.SetDebug(debugMode);
+
+        if (validationMode) {
+            m_Logger.ConfigureLocalValidation();
+        }
 
         while(!m_Logger.IsReady())
             yield return null;
@@ -35,7 +40,11 @@ public class BasicLoggingExample : MonoBehaviour {
 
         using (var u = m_Logger.OpenUserData()) {
             u.Param("high_score", Random.Range(25, 68));
-        }
+        } 
+    }
+
+    private void OnDestroy() {
+        m_Logger?.Dispose();
     }
 
     private void Update() {
@@ -51,6 +60,12 @@ public class BasicLoggingExample : MonoBehaviour {
             }
         } else if (Input.GetMouseButtonDown(1)) {
             m_Logger.Log("test_structured", "{\"something\":[4,5,6,7,8,15],\"nesting\":{\"x\":15}}");
+        } else if (Input.GetKeyDown(KeyCode.N)) {
+            using (var e = m_Logger.NewEvent("test_nans")) {
+                e.Param("regularFloat", Random.value);
+                e.Param("infinity", float.PositiveInfinity);
+                e.Param("nan", float.NaN);
+            }
         }
 
         if (Input.GetKeyDown(KeyCode.R)) {

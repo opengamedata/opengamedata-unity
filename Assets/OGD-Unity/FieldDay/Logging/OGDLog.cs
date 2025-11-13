@@ -110,11 +110,18 @@ namespace OGD {
             /// </summary>
             public float ReconnectDelay;
 
+            /// <summary>
+            /// Delay, in seconds, between events being written to the validation file,
+            /// and the validation file contents being flushed to device.
+            /// </summary>
+            public float ValidationFileFlushDelay;
+
             static public readonly SchedulingConfig Default = new SchedulingConfig() {
                 FlushDelay = 0.2f,
                 FlushFailureDelay = 0.4f,
                 RepeatedFailureDelay = 0.2f,
-                ReconnectDelay = 10
+                ReconnectDelay = 10,
+                ValidationFileFlushDelay = 10
             };
         }
 
@@ -215,6 +222,12 @@ namespace OGD {
         private long m_NextFlushTick = -1;
         private long m_NextFlushTickBase;
         private long m_NextConnectionRetry;
+        private long m_NextValidationFlushTick;
+
+        // validation file
+        private StreamState m_ValidationFileStreamState;
+        private FileStream m_ValidationFileStream;
+        private StreamWriter m_ValidationFileWriter;
 
         // dispatcher
         private FlushDispatcher m_FlushDispatcher;
@@ -223,7 +236,6 @@ namespace OGD {
         private readonly StringBuilder m_EventStream = new StringBuilder(EventStreamMinimumSize);
         private StreamState m_MainStreamState;
         private StreamState m_MirrorStreamState;
-        private StreamState m_ValidationFileStreamState;
 
         // custom event parameter json builder - this holds the custom event parameters
         private unsafe char* m_DataBufferHead;
@@ -390,20 +402,18 @@ namespace OGD {
             }
 
             if ((m_Settings & SettingsFlags.UseValidationFile) != 0) {
-                // remove last comma and add closing bracket
-                try {
-                    using (var fs = new FileStream(m_ValidationFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite)) {
-                        fs.SetLength(fs.Length - 1);
-                        fs.Close();
-                    }
+                if (m_ValidationFileStreamState.ReadyForSend()) {
+                    GenerateAndUploadValidationPacket(ref m_ValidationFileStreamState, false);
+                }
 
-                    using (StreamWriter sw = new StreamWriter(m_ValidationFilePath, append: true)) {
-                        sw.Write(']');
-                        sw.Flush();
-                        sw.Close();
-                    }
-                } catch { }
+                CloseValidationFileStream();
             }
+
+            m_ValidationFileWriter?.Dispose();
+            m_ValidationFileStream?.Dispose();
+
+            m_ValidationFileStream = null;
+            m_ValidationFileWriter = null;
 
             if (m_FlushDispatcher) {
                 GameObject.Destroy(m_FlushDispatcher.gameObject);
@@ -416,6 +426,12 @@ namespace OGD {
 
             m_StatusFlags |= StatusFlags.Disposed;
             m_StatusFlags &= ~StatusFlags.Initialized;
+
+            GC.SuppressFinalize(this);
+        }
+
+        ~OGDLog() {
+            Dispose();
         }
 
         #region Configuration
@@ -588,32 +604,19 @@ namespace OGD {
         public void ConfigureLocalValidation() {
             string basePath;
 #if UNITY_EDITOR
-            basePath = "Assets";
-            if (!AssetDatabase.IsValidFolder("Assets/OGD")) {
-                AssetDatabase.CreateFolder("Assets", "OGD");
-            }
-            if (!AssetDatabase.IsValidFolder("Assets/OGD/Validation")) {
-                AssetDatabase.CreateFolder("Assets/OGD", "Validation");
-            }
-            if (!AssetDatabase.IsValidFolder("Assets/OGD/Validation" + m_SessionConsts.SessionId)) {
-                AssetDatabase.CreateFolder("Assets/OGD/Validation", m_SessionConsts.SessionId.ToString());
-            }
+            basePath = "Logs";
 #else
             basePath = Application.persistentDataPath;
-            Directory.CreateDirectory(basePath + "/OGD/Validation/" + m_SessionConsts.SessionId);
 #endif
-            m_ValidationFilePath = basePath + "/OGD/Validation/" + m_SessionConsts.SessionId + "/validation.txt";
+            Directory.CreateDirectory(basePath + "/OGD/Validation/" + m_SessionConsts.SessionId);
+            
+            m_ValidationFilePath = basePath + "/OGD/Validation/" + m_SessionConsts.SessionId + "/validation";
             m_Settings |= SettingsFlags.UseValidationFile;
             m_ValidationFileStreamState.CleanActivate();
 
-            // Add initial bracket
-            try {
-                using (StreamWriter sw = new StreamWriter(m_ValidationFilePath, append: true)) {
-                    sw.Write('[');
-                    sw.Flush();
-                    sw.Close();
-                }
-            } catch { }
+            if (!CreateValidationFileStream(m_ValidationFilePath)) {
+                FindBestValidationFilePath();
+            }
 
             RemoveConfirmedUploadedEvents(false);
         }
@@ -785,6 +788,23 @@ namespace OGD {
 
             if (ModuleReady(ModuleId.Firebase)) {
                 Firebase_SetEventParam(parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom event parameter with a null value.
+        /// </summary>
+        public void EventParamNull(string parameterName) {
+            if ((m_StatusFlags & StatusFlags.WritingEventCustomData) == 0) {
+                throw new InvalidOperationException("No unsubmitted event to add an event parameter to");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBufferNull(ref m_EventCustomParamsBuffer, parameterName);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetEventParam(parameterName, null);
             }
         }
 
@@ -1098,6 +1118,23 @@ namespace OGD {
         }
 
         /// <summary>
+        /// Writes a custom game state parameter as a null value.
+        /// </summary>
+        public void GameStateParamNull(string parameterName) {
+            if ((m_StatusFlags & StatusFlags.WritingGameState) == 0) {
+                throw new InvalidOperationException("Game State not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBufferNull(ref m_GameStateParamsBuffer, parameterName);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetGameStateParam(parameterName, null);
+            }
+        }
+
+        /// <summary>
         /// Writes a custom game state string parameter.
         /// </summary>
         public void GameStateParamJson(string parameterName, string parameterValue) {
@@ -1299,6 +1336,23 @@ namespace OGD {
         }
 
         /// <summary>
+        /// Writes a custom user data parameter as a null value.
+        /// </summary>
+        public void UserDataParamNull(string parameterName) {
+            if ((m_StatusFlags & StatusFlags.WritingUserData) == 0) {
+                throw new InvalidOperationException("User Data not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBufferNull(ref m_UserDataParamsBuffer, parameterName);
+            }
+
+            if (ModuleReady(ModuleId.Firebase)) {
+                Firebase_SetUserDataParam(parameterName, null);
+            }
+        }
+
+        /// <summary>
         /// Writes a custom user data string parameter.
         /// </summary>
         public void UserDataParamJson(string parameterName, string parameterValue) {
@@ -1413,6 +1467,97 @@ namespace OGD {
 
         #endregion // User Data
 
+        #region Validation File
+
+        private bool CreateValidationFileStream(string path) {
+            m_ValidationFileWriter?.Dispose();
+            m_ValidationFileStream?.Dispose();
+
+            try {
+                m_ValidationFileStream = File.Open(path + ".json", FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
+                m_ValidationFileWriter = new StreamWriter(m_ValidationFileStream);
+
+                m_ValidationFileWriter.Write('[');
+                m_ValidationFileWriter.Flush();
+                return true;
+            } catch(Exception e) {
+                Console.WriteLine("[OGDLog] Opening validation file stream at '{0}' was unsuccessful", path);
+                Console.WriteLine(e.ToString());
+                m_ValidationFileStreamState.FailureCounter++;
+                return false;
+            }
+        }
+
+        private void CloseValidationFileStream() {
+            try {
+                m_ValidationFileWriter.Flush();
+                m_ValidationFileStream.SetLength(m_ValidationFileStream.Length - 1);
+                m_ValidationFileWriter.Write(']');
+                m_ValidationFileWriter.Flush();
+            } catch (Exception e) {
+                Console.WriteLine("[OGDLog] Encountered exception when completing validation file write");
+                Console.WriteLine(e.ToString());
+            }
+
+#if UNITY_WEBGL
+            OGDLogUtils.SyncWebFiles();
+#endif // UNITY_WEBGL
+        }
+
+        // Ensures the validation file
+        private bool EnsureValidationFileStream() {
+            if (!m_ValidationFileStream.CanWrite) {
+                Console.WriteLine("[OGDLog] Validation file stream is unable to be written to");
+                m_ValidationFileStreamState.FailureCounter++;
+                return FindBestValidationFilePath();
+            }
+
+            return true;
+        }
+
+        private bool FindBestValidationFilePath() {
+            // TODO: Implement
+            return false;
+        }
+
+        private bool GenerateAndUploadValidationPacket(ref StreamState state, bool attemptRestartFile) {
+            int length = m_EventStream.Length - state.BaseOffset;
+            if (length <= 0) {
+                return false;
+            }
+
+            if (attemptRestartFile) {
+                if (!EnsureValidationFileStream()) {
+                    return false;
+                }
+            } else {
+                if (m_ValidationFileStream.CanWrite) {
+                    return false;
+                }
+            }
+
+            int eventStreamCharLength = length;
+            m_EventStream.CopyTo(state.BaseOffset, m_EventStreamEncodingChars, 0, eventStreamCharLength); // preserve comma
+            try {
+                m_ValidationFileWriter.Write(m_EventStreamEncodingChars, 0, eventStreamCharLength);
+                state.BaseOffset += length;
+                RemoveConfirmedUploadedEvents(true);
+
+                if (m_NextValidationFlushTick <= 0) {
+                    m_NextValidationFlushTick = Stopwatch.GetTimestamp() + (long) (Stopwatch.Frequency * m_SchedulingConfig.ValidationFileFlushDelay);
+                    m_FlushDispatcher.enabled = true;
+                }
+
+                return true;
+            } catch(Exception e) {
+                Console.WriteLine("[OGDLog] Error when writing to log file");
+                Console.WriteLine(e.ToString());
+                return false;
+            }
+        }
+
+        #endregion // Validation File
+
         #region Flush
 
         private struct UploadPacket {
@@ -1439,17 +1584,13 @@ namespace OGD {
             
             if ((m_Settings & SettingsFlags.UseValidationFile) != 0) {
                 // write to validation file before server upload
-                if (m_ValidationFileStreamState.ReadyForSend() && TryGenerateValidationPacket("validation", m_ValidationFileStreamState.BaseOffset, out string validationPacket, out int charsProcessed)) {
-                    m_ValidationFileStreamState.SentOffset = m_ValidationFileStreamState.BaseOffset;
-                    m_ValidationFileStreamState.SentLength = charsProcessed;
-
-                    HandleValidationResult(ref m_ValidationFileStreamState, "validation", validationPacket);
+                if (m_ValidationFileStreamState.ReadyForSend()) {
+                    GenerateAndUploadValidationPacket(ref m_ValidationFileStreamState, true);
                 }
             }
 
             if ((m_Settings & SettingsFlags.SkipOGDUpload) != 0) {
-                if ((m_Settings & SettingsFlags.Debug) != 0)
-                {
+                if ((m_Settings & SettingsFlags.Debug) != 0) {
                     Console.WriteLine("[OGDLog] Skipping server upload");
                 }
                 m_MainStreamState = default;
@@ -1458,7 +1599,6 @@ namespace OGD {
                 m_EventStream.Clear();
                 return;
             }
-
 
 
             if (ModuleReady(ModuleId.OpenGameData)) {
@@ -1589,25 +1729,7 @@ namespace OGD {
             return request;
         }
 
-        /// <summary>
-        /// Attempts to generate a packet of events for local validation.
-        /// </summary>
-        private bool TryGenerateValidationPacket(string debugTag, int offset, out string packet, out int length) {
-            length = m_EventStream.Length - offset;
-            if (length <= 0) {
-                packet = default;
-                return false;
-            }
-
-            int eventStreamCharLength = length;
-            m_EventStream.CopyTo(offset, m_EventStreamEncodingChars, 0, eventStreamCharLength); // preserve comma
-            packet = new String(m_EventStreamEncodingChars, 0, eventStreamCharLength);
-
-            return true;
-        }
-
-        private void HandleOGDPostResponse(AsyncOperation op)
-        {
+        private void HandleOGDPostResponse(AsyncOperation op) {
             UnityWebRequest request = ((UnityWebRequestAsyncOperation)op).webRequest;
             HandleBasePostResponse(request, ref m_MainStreamState, EndpointType.Main, "main");
         }
@@ -1674,44 +1796,6 @@ namespace OGD {
                 }
                 OnConnectionFailedTooManyTimes?.Invoke(endpoint);
             }
-
-            RemoveConfirmedUploadedEvents(true);
-            m_StatusFlags &= ~StatusFlags.Flushing;
-
-            // if we still have events to submit, let's flush again
-            if (m_EventStream.Length > 0) {
-                if (resultType == UploadResultType.Success) {
-                    Flush();
-                } else {
-                    TryScheduleFlush(m_SchedulingConfig.FlushFailureDelay + (state.FailureCounter - 1) * m_SchedulingConfig.RepeatedFailureDelay);
-                }
-            }
-
-            return resultType;
-        }
-        
-        private UploadResultType HandleValidationResult(ref StreamState state, string debugTag, string packet) {
-            UploadResultType resultType = UploadResultType.Success;
-
-            try {
-                using (StreamWriter sw = new StreamWriter(m_ValidationFilePath, append: true)) {
-                    sw.Write(packet);
-                    sw.Flush();
-                    sw.Close();
-                }
-            } catch {
-                resultType = UploadResultType.Failure;
-            }
-
-            if (resultType == UploadResultType.Success) {
-                state.FailureCounter = 0;
-                state.BaseOffset += state.SentLength;
-            } else {
-                state.FailureCounter += (int) resultType;
-            }
-
-            state.SentLength = 0;
-            state.SentOffset = 0;
 
             RemoveConfirmedUploadedEvents(true);
             m_StatusFlags &= ~StatusFlags.Flushing;
@@ -1830,6 +1914,14 @@ namespace OGD {
                     m_Logger.Flush();
                     enabled = m_Logger.m_NextFlushTick > 0 || m_Logger.m_NextConnectionRetry > 0;
                 }
+
+                if (m_Logger.m_NextValidationFlushTick > 0 && now >= m_Logger.m_NextValidationFlushTick) {
+                    m_Logger.m_ValidationFileWriter?.Flush();
+#if UNITY_WEBGL
+                    OGDLogUtils.SyncWebFiles();
+#endif // UNITY_WEBGL
+                    m_Logger.m_NextValidationFlushTick = -1;
+                }
             }
         }
 
@@ -1904,6 +1996,12 @@ namespace OGD {
             buffer.Write("\":\"");
             OGDLogUtils.EscapeJSON(ref buffer, parameterValue);
             buffer.Write("\",");
+        }
+
+        static private void WriteBufferNull(ref FixedCharBuffer buffer, string parameterName) {
+            buffer.Write('"');
+            buffer.Write(parameterName);
+            buffer.Write("\":null,");
         }
 
         static private void WriteBufferUnescaped(ref FixedCharBuffer buffer, string parameterName, string parameterValue) {

@@ -14,6 +14,7 @@ Unity package for logging with Field Day's OpenGameData servers.
 8. Updated surveys to support alternate layouts and branching (26 Nov 2024)
 9. Support for saving events to a local file for validation (2 July 2025)
 10. Local validation file follows JSON formatting (3 July 2025)
+11. Improved performance of validation file; Improved handling of NaN values (5 Aug 2025)
 
 ## Setup
 
@@ -168,7 +169,7 @@ You can mirror your OpenGameData events to a secondary endpoint by calling `OGDL
 
 ### Validation Files
 
-You can record your OpenGameData events to a local file for validation by calling `OGDLog.ConfigureLocalValidation()` during setup. In builds, this file will be stored in the program's persistent data path under `OGD/Validation/[sessionId]/validation.txt`. In the Unity Editor, the path is `Assets/OGD/Validation/[sessionId]/validation.txt`.
+You can record your OpenGameData events to a local file for validation by calling `OGDLog.ConfigureLocalValidation()` during setup. In builds, this file will be stored in the program's persistent data path under `OGD/Validation/[sessionId]/validation.json`. When running the project from the Unity Editor, the path is `Logs/OGD/Validation/[sessionId]/validation.json`.
 
 ## Debugging
 

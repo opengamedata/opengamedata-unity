@@ -68,6 +68,13 @@ namespace OGD {
             m_Logger.EventParam(paramName, paramValue);
         }
 
+        /// <summary>
+        /// Appends a parameter with a null.
+        /// </summary>
+        public void Null(string paramName) {
+            m_Logger.EventParamNull(paramName);
+        }
+
         public void Dispose() {
             if (m_Logger != null) {
                 m_Logger.SubmitEvent();
@@ -137,6 +144,13 @@ namespace OGD {
             m_Logger.GameStateParam(paramName, paramValue);
         }
 
+        /// <summary>
+        /// Appends a parameter with a null value.
+        /// </summary>
+        public void Null(string paramName) {
+            m_Logger.GameStateParamNull(paramName);
+        }
+
         public void Dispose() {
             if (m_Logger != null) {
                 m_Logger.SubmitGameState();
@@ -204,6 +218,13 @@ namespace OGD {
         /// </summary>
         public void Param(string paramName, bool paramValue) {
             m_Logger.UserDataParam(paramName, paramValue);
+        }
+
+        /// <summary>
+        /// Appends a parameter with a null value.
+        /// </summary>
+        public void Null(string paramName) {
+            m_Logger.UserDataParamNull(paramName);
         }
 
         public void Dispose() {
