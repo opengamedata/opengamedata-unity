@@ -1,7 +1,7 @@
 {
     "name": "com.fieldday.opengamedata-unity",
     "displayName": "opengamedata-unity",
-    "version": "1.0.13",
+    "version": "1.0.14",
     "unity": "2018.4",
     "dependencies": {
         "com.unity.textmeshpro": "1.0.0"

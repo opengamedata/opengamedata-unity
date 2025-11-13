@@ -14,7 +14,7 @@ Unity package for logging with Field Day's OpenGameData servers.
 8. Updated surveys to support alternate layouts and branching (26 Nov 2024)
 9. Support for saving events to a local file for validation (2 July 2025)
 10. Local validation file follows JSON formatting (3 July 2025)
-11. Improved performance of validation file; Improved handling of NaN values (5 Aug 2025)
+11. Support for "multi" and "multi-nullable" prompt types; Improved performance of validation file; Improved handling of NaN values (13 Nov 2025)
 
 ## Setup
 
