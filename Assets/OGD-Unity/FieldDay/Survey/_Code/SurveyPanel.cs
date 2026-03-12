@@ -33,7 +33,8 @@ namespace OGD
         [Header("Questions")]
         [SerializeField] private LayoutGroup m_QuestionLayout = null;
         [SerializeField] private SurveyQuestionDisplay m_QuestionPrefab = null;
-        [SerializeField] private Toggle m_ResponsePrefab = null;
+        [SerializeField] private Toggle m_DefaultResponsePrefab = null;
+        [SerializeField] private Toggle m_MultiResponsePrefab = null;
 
         [Header("Controls")]
         [SerializeField] private CanvasGroup m_ButtonGroup = null;
@@ -225,7 +226,11 @@ namespace OGD
             int questionIndexOffset = pageIndex > 0 ? m_PageOffsets[pageIndex - 1] : 0;
 
             for(int i = 0; i < page.Questions.Length; i++) {
-                m_InstantiatedQuestions[i].LoadQuestion(page.Questions[i], i + questionIndexOffset, m_ResponsePrefab);
+                if(page.Questions[i].Type != SurveyPromptTypes.Default) {
+                    m_InstantiatedQuestions[i].LoadQuestion(page.Questions[i], i + questionIndexOffset, m_MultiResponsePrefab);
+                } else { 
+                    m_InstantiatedQuestions[i].LoadQuestion(page.Questions[i], i + questionIndexOffset, m_DefaultResponsePrefab);
+                }
                 OnPopulateQuestion?.Invoke(m_InstantiatedQuestions[i], page.Questions[i], page);
             }
 
