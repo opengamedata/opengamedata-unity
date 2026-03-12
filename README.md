@@ -266,6 +266,10 @@ mySurveyPanel.OnNextButtonState // callback for when the next/finish button is c
 
 Note: Survey prefabs must make use of `TextMeshPro` text elements to be compatible.
 
+### TextMesh Pro
+
+The survey module requires the `Unity.TextMeshPro` dll. If you have the `com.unity.textmeshpro` package included in your project, it will automatically be located. If you're using a custom implementation of TextMeshPro, add the define `OGD_SURVEY_CUSTOMTMP` to your Scripting Define Symbols.
+
 ## Updating
 
 To update the local package, run the following command:

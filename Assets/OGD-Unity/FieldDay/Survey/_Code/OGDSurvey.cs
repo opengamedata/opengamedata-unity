@@ -1,11 +1,10 @@
-﻿using System;
+﻿#if !USING_TEXTMESHPRO && !OGD_SURVEY_CUSTOMTMP
+#error  TextMeshPro support not detected - set the OGD_SURVEY_CUSTOMTMP compiler flag
+#endif // !USING_TEXTMESHPRO && !OGD_SURVEY_CUSTOMTMP
+
+using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Text;
-using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace OGD
 {

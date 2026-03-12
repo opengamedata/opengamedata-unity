@@ -1,7 +1,7 @@
 {
     "name": "OGD.Log",
-    "references": [
-    ],
+    "rootNamespace": "",
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": true,
