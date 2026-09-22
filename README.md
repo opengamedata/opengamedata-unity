@@ -138,6 +138,25 @@ Finally, there is a `GameState` method to set the `game_state` to an arbitrary J
 m_Logger.GameState("{\"param1\":502}");
 ```
 
+### Game Segment
+
+The shared `game_segment` parameter records where the player is within the game's
+structural progression, such as the current level, quest, or region. It behaves
+similarly to the `game_state` parameter, with a nearly identical syntax, swapping
+`GameState` for `GameSegment` in method names.
+
+```csharp
+m_Logger.OpenGameSegment()
+m_Logger.BeginGameSegment()
+m_Logger.GameSegmentParam(...)
+m_Logger.SubmitGameSegment()
+m_Logger.GameSegment(...)
+m_Logger.ClearGameSegment()
+```
+
+It is not sent while the logger is set to `OGDSchemaVersion.V0_1`, and unlike
+`game_state` it is not mirrored to Firebase Analytics.
+
 ### User Data
 
 The shared `user_data` parameter behaves similarly to the `game_state` parameter, with
@@ -159,6 +178,7 @@ and `StringBuilder` instances.
 The default maximum size of the event parameters for a single event is 4096 characters.
 The default maximum size for `game_state` and `user_data` is 2048 characters each.
 You can reconfigure these maximum sizes by passing a `OGDLog.MemoryConfig` into the `OGDLog` constructor.
+The maximum size for `game_segment` is 2048 characters.
 
 ### Firebase Analytics
 
