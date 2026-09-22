@@ -97,6 +97,19 @@ For backwards compatibility, you can send events using a `LogEvent` object, whic
 Once a `LogEvent` object is constructed with the given data, it can then be passed into `OGDLog` with the `Log()` function.
 This will then log it using a sequence of calls similar to those listed in the previous section.
 
+### Schema Version
+
+The logger can emit either the original `0.1` event schema or the OpenGameData
+Event Standard `1.0`. It defaults to `1.0`, so a game that updates this package
+moves to the new standard without any code change. To stay on the old schema:
+
+```csharp
+m_Logger.SetSchemaVersion(OGDSchemaVersion.V0_1);
+```
+
+Under `V1_0`, `app_version` becomes `game_version`, and `source_version` (which
+mirrors `game_version`) and `schema_version` are added.
+
 ### Game State
 
 To set the shared `game_state` parameter, you can do so in one of two ways.
