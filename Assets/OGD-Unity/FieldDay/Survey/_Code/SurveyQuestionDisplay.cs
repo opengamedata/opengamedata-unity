@@ -26,9 +26,11 @@ namespace OGD
         [SerializeField, Tooltip("If set, this will be prepended to the prompt, with the number of the question replacing the '{0}'.\nUse <indent=x%> to indent the prompt itself.")]
         private string m_PrefixFormat = "Q{0}:<indent=10%>";
 
-        [Header("Toggles")]
-        [SerializeField] private ToggleGroup m_ToggleGroup = null;
-        [SerializeField] private LayoutGroup m_ToggleLayout = null;
+        [Header("Responses")]
+        [SerializeField, Tooltip("ToggleGroup for responses")]
+        private ToggleGroup m_ToggleGroup = null;
+        [SerializeField, Tooltip("LayoutGroup for responses")]
+        private LayoutGroup m_ToggleLayout = null;
 
         #endregion // Inspector
 
