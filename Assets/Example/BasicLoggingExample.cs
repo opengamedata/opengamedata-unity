@@ -43,6 +43,12 @@ public class BasicLoggingExample : MonoBehaviour {
         using (var u = m_Logger.OpenUserData()) {
             u.Param("high_score", Random.Range(25, 68));
         } 
+
+        // game_segment is only attached to events under schema v1.0
+        using (var seg = m_Logger.OpenGameSegment()) {
+            seg.Param("level", "reef-3");
+            seg.Param("attempt", 2);
+        }
     }
 
     private void OnDestroy() {

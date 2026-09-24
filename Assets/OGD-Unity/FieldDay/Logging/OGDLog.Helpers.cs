@@ -160,6 +160,82 @@ namespace OGD {
     }
 
     /// <summary>
+    /// Game segment helper object.
+    /// This automatically submits the game segment
+    /// when disposed.
+    /// </summary>
+    public struct GameSegmentScope : IDisposable {
+        private OGDLog m_Logger;
+
+        internal GameSegmentScope(OGDLog logger) {
+            m_Logger = logger;
+        }
+
+        /// <summary>
+        /// Appends a parameter with a string value.
+        /// </summary>
+        public void Param(string paramName, string paramValue) {
+            m_Logger.GameSegmentParam(paramName, paramValue);
+        }
+
+        /// <summary>
+        /// Appends a parameter with arbitrary json.
+        /// </summary>
+        public void Json(string paramName, string json) {
+            m_Logger.GameSegmentParamJson(paramName, json);
+        }
+
+        /// <summary>
+        /// Appends a parameter with a string value.
+        /// </summary>
+        public void Param(string paramName, StringBuilder paramValue) {
+            m_Logger.GameSegmentParam(paramName, paramValue);
+        }
+
+        /// <summary>
+        /// Appends a parameter with arbitrary json.
+        /// </summary>
+        public void Json(string paramName, StringBuilder json) {
+            m_Logger.GameSegmentParamJson(paramName, json);
+        }
+
+        /// <summary>
+        /// Appends a parameter with an integer value.
+        /// </summary>
+        public void Param(string paramName, long paramValue) {
+            m_Logger.GameSegmentParam(paramName, paramValue);
+        }
+
+        /// <summary>
+        /// Appends a parameter with a floating point value.
+        /// </summary>
+        public void Param(string paramName, float paramValue, int precision = 3) {
+            m_Logger.GameSegmentParam(paramName, paramValue, precision);
+        }
+
+        /// <summary>
+        /// Appends a parameter with a boolean value.
+        /// </summary>
+        public void Param(string paramName, bool paramValue) {
+            m_Logger.GameSegmentParam(paramName, paramValue);
+        }
+
+        /// <summary>
+        /// Appends a parameter with a null value.
+        /// </summary>
+        public void Null(string paramName) {
+            m_Logger.GameSegmentParamNull(paramName);
+        }
+
+        public void Dispose() {
+            if (m_Logger != null) {
+                m_Logger.SubmitGameSegment();
+                m_Logger = null;
+            }
+        }
+    }
+
+    /// <summary>
     /// User data helper object.
     /// This automatically submits the user data
     /// when disposed.
