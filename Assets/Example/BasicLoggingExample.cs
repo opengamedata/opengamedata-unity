@@ -9,6 +9,7 @@ public class BasicLoggingExample : MonoBehaviour {
     public int clientLogVersion;
     public bool debugMode = true;
     public bool validationMode = false;
+    public OGDSchemaVersion schemaVersion = OGDSchemaVersion.V1_0;
 
     private OGDLog m_Logger;
 
@@ -16,6 +17,7 @@ public class BasicLoggingExample : MonoBehaviour {
         m_Logger = new OGDLog(appId, appVersion);
         m_Logger.SetUserId("default");
         m_Logger.SetDebug(debugMode);
+        m_Logger.SetSchemaVersion(schemaVersion);
 
         if (validationMode) {
             m_Logger.ConfigureLocalValidation();

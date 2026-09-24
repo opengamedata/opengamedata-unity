@@ -6,6 +6,14 @@ using System;
 namespace OGD {
 
     /// <summary>
+    /// Version of the OpenGameData event schema to emit.
+    /// </summary>
+    public enum OGDSchemaVersion {
+        V0_1,
+        V1_0
+    }
+
+    /// <summary>
     /// OpenGameData logging constants.
     /// </summary>
     [Serializable]

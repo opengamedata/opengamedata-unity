@@ -218,6 +218,7 @@ namespace OGD {
         private uint m_EventSequence;
         private StatusFlags m_StatusFlags;
         private SettingsFlags m_Settings;
+        private OGDSchemaVersion m_SchemaVersion = OGDSchemaVersion.V1_0;
         private ModuleStatus[] m_ModuleStatus = new ModuleStatus[(int) ModuleId.COUNT];
         private long m_NextFlushTick = -1;
         private long m_NextFlushTickBase;
@@ -480,6 +481,24 @@ namespace OGD {
         }
 
         /// <summary>
+        /// Sets the event schema version this logger emits.
+        /// Defaults to v1.0; call this with OGDSchemaVersion.V0_1 to stay on the old schema.
+        /// </summary>
+        public void SetSchemaVersion(OGDSchemaVersion schemaVersion) {
+            if (m_SchemaVersion != schemaVersion) {
+                m_SchemaVersion = schemaVersion;
+                RefreshEndpointUris();
+            }
+        }
+
+        /// <summary>
+        /// Returns the event schema version this logger is currently emitting.
+        /// </summary>
+        public OGDSchemaVersion GetSchemaVersion() {
+            return m_SchemaVersion;
+        }
+
+        /// <summary>
         /// Sets the settings flags for the logger.
         /// This dictates debug output and base64 encoding.
         /// </summary>
@@ -582,7 +601,7 @@ namespace OGD {
                 m_MirroringAppIdOverride = overrideAppId;
 
                 if (!string.IsNullOrEmpty(m_MirroringURL)) {
-                    m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_MirroringURL, m_MirroringAppIdOverride);
+                    m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_SchemaVersion, m_MirroringURL, m_MirroringAppIdOverride);
                     if (m_MirrorEndpoint != null) {
                         m_MirrorStreamState.CleanActivate();
                     } else {
@@ -657,9 +676,9 @@ namespace OGD {
         /// </summary>
         [MethodImpl(256)]
         private void RefreshEndpointUris() {
-            m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, null, null);
+            m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_SchemaVersion, null, null);
             if (!string.IsNullOrEmpty(m_MirroringURL)) {
-                m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_MirroringURL, m_MirroringAppIdOverride);
+                m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_SchemaVersion, m_MirroringURL, m_MirroringAppIdOverride);
             } else {
                 m_MirrorEndpoint = null;
             }
@@ -1944,7 +1963,7 @@ namespace OGD {
 
         #region String Assembly
 
-        static private unsafe Uri BuildOGDUrl(OGDLogConsts ogdConsts, SessionConsts session, string overrideUrl, string overrideAppId) {
+        static private unsafe Uri BuildOGDUrl(OGDLogConsts ogdConsts, SessionConsts session, OGDSchemaVersion schemaVersion, string overrideUrl, string overrideAppId) {
             char* buffer = stackalloc char[512];
             FixedCharBuffer charBuff = new FixedCharBuffer("url", buffer, 512);
             
@@ -1953,8 +1972,17 @@ namespace OGD {
             charBuff.Write(Uri.EscapeDataString((overrideAppId ?? ogdConsts.AppId).ToUpperInvariant()));
             charBuff.Write("&log_version=");
             charBuff.Write(ogdConsts.ClientLogVersion);
-            charBuff.Write("&app_version=");
-            charBuff.Write(Uri.EscapeDataString(ogdConsts.AppVersion));
+            if (schemaVersion == OGDSchemaVersion.V0_1) {
+                charBuff.Write("&app_version=");
+                charBuff.Write(Uri.EscapeDataString(ogdConsts.AppVersion));
+            } else {
+                // source_version mirrors game_version: this library only logs events the game itself produced
+                charBuff.Write("&game_version=");
+                charBuff.Write(Uri.EscapeDataString(ogdConsts.AppVersion));
+                charBuff.Write("&source_version=");
+                charBuff.Write(Uri.EscapeDataString(ogdConsts.AppVersion));
+                charBuff.Write("&schema_version=1.0");
+            }
             charBuff.Write("&session_id=");
             charBuff.Write(session.SessionId);
             if (!string.IsNullOrEmpty(ogdConsts.AppBranch)) {
