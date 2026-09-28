@@ -751,6 +751,14 @@ namespace OGD {
         /// Provide arguments with EventParam calls.
         /// </summary>
         public void BeginEvent(string eventName) {
+            BeginEvent(0, eventName);
+        }
+
+        /// <summary>
+        /// Begins logging an event with the given event code (see OGDEvents) and name.
+        /// Provide arguments with EventParam calls.
+        /// </summary>
+        public void BeginEvent(int eventId, string eventName) {
             if ((m_StatusFlags & StatusFlags.Initialized) == 0) {
                 throw new InvalidOperationException("OGDLog must be initialized before any events are logged");
             }
@@ -775,6 +783,7 @@ namespace OGD {
                 WriteStream(m_EventStream, v1 ? "timestamp" : "client_time", nowTime);
                 WriteStream(m_EventStream, "client_offset", clientOffset);
                 if (v1) {
+                    WriteStream(m_EventStream, "event_id", eventId);
                     WriteStream(m_EventStream, "game_time", (Stopwatch.GetTimestamp() - m_SessionStartTick) / (double) Stopwatch.Frequency, 3);
                 }
             }
@@ -799,6 +808,18 @@ namespace OGD {
         }
 
         /// <summary>
+        /// Begins logging an event with the given event code (see OGDEvents) and name.
+        /// This returns a disposable EventScope object
+        /// that can accept event parameters. It will
+        /// submit the event on dispose. Recommend to use
+        /// with the `using` keyword
+        /// </summary>
+        public EventScope NewEvent(int eventId, string eventName) {
+            BeginEvent(eventId, eventName);
+            return new EventScope(this);
+        }
+
+        /// <summary>
         /// Logs an event with no event_data json.
         /// </summary>
         public void Log(string eventName) {
@@ -819,6 +840,31 @@ namespace OGD {
         /// </summary>
         public void Log(string eventName, StringBuilder eventJSON) {
             BeginEvent(eventName);
+            EndEventCustomParamsFromString(eventJSON);
+            SubmitEvent();
+        }
+
+        /// <summary>
+        /// Logs an event with the given event code (see OGDEvents) and no event_data json.
+        /// </summary>
+        public void Log(int eventId, string eventName) {
+            Log(eventId, eventName, "{}");
+        }
+
+        /// <summary>
+        /// Logs an event with the given event code (see OGDEvents) and custom event_data json object.
+        /// </summary>
+        public void Log(int eventId, string eventName, string eventJSON) {
+            BeginEvent(eventId, eventName);
+            EndEventCustomParamsFromString(eventJSON);
+            SubmitEvent();
+        }
+
+        /// <summary>
+        /// Logs an event with the given event code (see OGDEvents) and custom event_data json object.
+        /// </summary>
+        public void Log(int eventId, string eventName, StringBuilder eventJSON) {
+            BeginEvent(eventId, eventName);
             EndEventCustomParamsFromString(eventJSON);
             SubmitEvent();
         }
