@@ -98,6 +98,24 @@ For backwards compatibility, you can send events using a `LogEvent` object, whic
 Once a `LogEvent` object is constructed with the given data, it can then be passed into `OGDLog` with the `Log()` function.
 This will then log it using a sequence of calls similar to those listed in the previous section.
 
+### Event Codes
+
+Under schema `1.0`, every event carries an `event_id` from the OpenGameData event standard. `OGDEvents` holds
+the codes as nested classes by category and family, and `BeginEvent`, `NewEvent` and `Log` each have an overload
+that takes one as its first argument.
+
+```csharp
+m_Logger.Log(OGDEvents.PlayerAction.PointAndClick.SelectObject, "select_crate", "{\"crate\":3}");
+
+using(EventScope evt = m_Logger.NewEvent(OGDEvents.Segmentation.SpatialRegions.EnterRegion, "enter_region")) {
+    evt.Param("region", "kelp-forest");
+}
+```
+
+Events logged by name only are sent with an `event_id` of `0`. For game-specific events, use a code from the
+`X900`-`X999` range of any block, or from the `9000` block. `OGDEvents.cs` is generated from the standard in
+`ogd-standards`, so don't edit it by hand.
+
 ### Schema Version
 
 The logger can emit either the original `0.1` event schema or the OpenGameData
