@@ -1301,7 +1301,7 @@ namespace OGD {
         /// Writes shared user data as the given JSON-formatted data.
         /// </summary>
         public void UserData(string userData) {
-            if ((m_StatusFlags & StatusFlags.WritingGameState) != 0) {
+            if ((m_StatusFlags & StatusFlags.WritingUserData) != 0) {
                 throw new InvalidOperationException("User Data already open for writing");
             }
 
@@ -1325,7 +1325,7 @@ namespace OGD {
                 throw new InvalidOperationException("User Data already open for writing");
             }
 
-            m_StatusFlags |= StatusFlags.WritingGameState;
+            m_StatusFlags |= StatusFlags.WritingUserData;
             m_UserDataParamsBuffer.Clear();
 
             if (ModuleReady(ModuleId.Firebase)) {
