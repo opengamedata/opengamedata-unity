@@ -1981,7 +1981,7 @@ namespace OGD {
                 charBuff.Write(Uri.EscapeDataString(ogdConsts.AppVersion));
                 charBuff.Write("&source_version=");
                 charBuff.Write(Uri.EscapeDataString(ogdConsts.AppVersion));
-                charBuff.Write("&schema_version=1.0");
+                charBuff.Write("&schema_version=1.0-alpha");
             }
             charBuff.Write("&session_id=");
             charBuff.Write(session.SessionId);
