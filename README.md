@@ -130,10 +130,15 @@ Under `V1_0`:
 
 - `app_id`, `app_version`, `user_id`, `user_data`, `event_sequence_index` and `client_time`
 are sent as `game_id`, `game_version`, `player_id`, `player_history`, `session_sequence_index`
-and `timestamp`.
+and `timestamp`, and `AppBranch` is sent as `condition`.
+- `timestamp` is local time with its offset from UTC, like `2026-10-06 18:55:00.123-05:00`
+(or `Z` in place of the offset when it's zero), so `client_offset` isn't sent.
 - `source_version` (which mirrors `game_version`) and `schema_version` are added.
-- Each event also carries `game_time` (seconds since the session started) and `platform`
-(operating system, device and engine version, filled in automatically).
+- Each event also carries `game_time` (seconds since the session started).
+- `player_history`, `game_configuration` and `platform` (operating system, device and engine
+version, filled in automatically) shouldn't change during a session, so they're sent once per
+request, in the query string, instead of with each event. Events waiting to be sent go out with
+the values current when they're sent, and since these go in the URL, keep them small.
 
 ### Game State
 
@@ -185,8 +190,8 @@ It is not sent while the logger is set to `OGDSchemaVersion.V0_1`, and unlike
 ### Game Configuration and Private Metadata
 
 The shared `game_configuration` and `private_metadata` parameters are set from JSON-formatted
-strings and attached to every event until they change. Pass `null` to clear them. Both are only
-sent under schema `1.0`.
+strings and sent until they change. Pass `null` to clear them. Both are only sent under schema
+`1.0`.
 
 ```csharp
 m_Logger.GameConfiguration("{\"difficulty\":\"hard\"}");
@@ -196,7 +201,8 @@ m_Logger.PrivateMetadata("{\"classroom\":\"7b\"}");
 ### User Data
 
 The shared `user_data` parameter behaves similarly to the `game_state` parameter, with
-a nearly identical syntax, swapping `GameState` for `UserData` in method names.
+a nearly identical syntax, swapping `GameState` for `UserData` in method names. Under schema
+`1.0` it's sent as `player_history`, in the query string.
 
 ```csharp
 m_Logger.OpenUserData()
@@ -238,7 +244,7 @@ You can mirror your OpenGameData events to a secondary endpoint by calling `OGDL
 
 ### Validation Files
 
-You can record your OpenGameData events to a local file for validation by calling `OGDLog.ConfigureLocalValidation()` during setup. In builds, this file will be stored in the program's persistent data path under `OGD/Validation/[sessionId]/validation.json`. When running the project from the Unity Editor, the path is `Logs/OGD/Validation/[sessionId]/validation.json`.
+You can record your OpenGameData events to a local file for validation by calling `OGDLog.ConfigureLocalValidation()` during setup. In builds, this file will be stored in the program's persistent data path under `OGD/Validation/[sessionId]/validation.json`. When running the project from the Unity Editor, the path is `Logs/OGD/Validation/[sessionId]/validation.json`. Under schema `1.0`, `player_history`, `game_configuration` and `platform` are sent in the query string, so they aren't in this file.
 
 ## Debugging
 

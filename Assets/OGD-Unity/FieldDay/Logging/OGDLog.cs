@@ -43,6 +43,8 @@ namespace OGD {
         private const float MaximumFlushDelay = 3f;
         private const int EndpointFailureCountCap = 10;
         private const int EndpointFailureCountReset = 6;
+        // keeps the url under System.Uri's 65519 character limit, with room for the 512 character base
+        private const int MaxSessionContextLength = 60000;
 
         static private readonly byte[] DataHeaderRawBytes = Encoding.UTF8.GetBytes("data=\"");
         static private readonly byte[] DataFooterRawBytes = Encoding.UTF8.GetBytes("\"");
@@ -456,12 +458,12 @@ namespace OGD {
 
             s_Instance = this;
             m_OGDConsts = constants;
-            RefreshEndpointUris();
 
             if (m_PlatformJson == null) {
-                string platformJson = PlatformJson(SystemInfo.operatingSystem, SystemInfo.deviceModel, "Unity " + Application.unityVersion);
-                m_PlatformJson = new StringBuilder().EscapeJSON(platformJson).ToString();
+                m_PlatformJson = PlatformJson(SystemInfo.operatingSystem, SystemInfo.deviceModel, "Unity " + Application.unityVersion);
             }
+
+            RefreshEndpointUris();
 
             m_StatusFlags |= StatusFlags.Initialized;
             SetModuleStatus(ModuleId.OpenGameData, ModuleStatus.Ready);
@@ -627,7 +629,7 @@ namespace OGD {
                 m_MirroringAppIdOverride = overrideAppId;
 
                 if (!string.IsNullOrEmpty(m_MirroringURL)) {
-                    m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_SchemaVersion, m_MirroringURL, m_MirroringAppIdOverride);
+                    m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_SchemaVersion, m_MirroringURL, m_MirroringAppIdOverride, SessionContextQuery());
                     if (m_MirrorEndpoint != null) {
                         m_MirrorStreamState.CleanActivate();
                     } else {
@@ -702,12 +704,52 @@ namespace OGD {
         /// </summary>
         [MethodImpl(256)]
         private void RefreshEndpointUris() {
-            m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_SchemaVersion, null, null);
+            string sessionContext = SessionContextQuery();
+            m_Endpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_SchemaVersion, null, null, sessionContext);
             if (!string.IsNullOrEmpty(m_MirroringURL)) {
-                m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_SchemaVersion, m_MirroringURL, m_MirroringAppIdOverride);
+                m_MirrorEndpoint = BuildOGDUrl(m_OGDConsts, m_SessionConsts, m_SchemaVersion, m_MirroringURL, m_MirroringAppIdOverride, sessionContext);
             } else {
                 m_MirrorEndpoint = null;
             }
+        }
+
+        /// <summary>
+        /// Returns the v1.0 context that shouldn't change during a session, which is sent in the query
+        /// string instead of with each event.
+        /// </summary>
+        private string SessionContextQuery() {
+            if (m_SchemaVersion != OGDSchemaVersion.V1_0) {
+                return string.Empty;
+            }
+
+            StringBuilder query = new StringBuilder();
+            if (!string.IsNullOrEmpty(m_GameConfigurationJson)) {
+                AppendQueryParam(query, "game_configuration", m_GameConfigurationJson);
+            }
+            if (!string.IsNullOrEmpty(m_PlatformJson)) {
+                AppendQueryParam(query, "platform", m_PlatformJson);
+            }
+            // the user data buffer is stored escaped for the v0.1 event body, so it's unescaped back to plain JSON here
+            if ((m_StatusFlags & StatusFlags.WritingUserData) == 0 && m_UserDataParamsBuffer.Length > 0) {
+                AppendQueryParam(query, "player_history", new StringBuilder().UnescapeJSON(ref m_UserDataParamsBuffer).ToString());
+            }
+            return query.ToString();
+        }
+
+        /// <summary>
+        /// Appends a query string parameter. Lone surrogates are sent as U+FFFD, the same as in the
+        /// UTF-8 event body, since Uri.EscapeDataString throws on them. A value too long for the url is
+        /// left out, since the url couldn't be built at all with it.
+        /// </summary>
+        static private void AppendQueryParam(StringBuilder query, string name, string value) {
+            if (value.Length <= MaxSessionContextLength) {
+                string escaped = Uri.EscapeDataString(Encoding.UTF8.GetString(Encoding.UTF8.GetBytes(value)));
+                if (query.Length + name.Length + escaped.Length + 2 <= MaxSessionContextLength) {
+                    query.Append('&').Append(name).Append('=').Append(escaped);
+                    return;
+                }
+            }
+            UnityEngine.Debug.LogWarningFormat("[OGDLog] {0} is too long to send in the url, so it's left out", name);
         }
 
         #endregion // Configuration
@@ -780,11 +822,13 @@ namespace OGD {
                 m_EventStream.Append('{');
                 WriteStream(m_EventStream, "event_name", eventName);
                 WriteStream(m_EventStream, v1 ? "session_sequence_index" : "event_sequence_index", eventSequenceIndex);
-                WriteStream(m_EventStream, v1 ? "timestamp" : "client_time", nowTime);
-                WriteStream(m_EventStream, "client_offset", clientOffset);
                 if (v1) {
+                    WriteStream(m_EventStream, "timestamp", nowTime + clientOffset, clientOffset);
                     WriteStream(m_EventStream, "event_id", eventId);
                     WriteStream(m_EventStream, "game_time", (Stopwatch.GetTimestamp() - m_SessionStartTick) / (double) Stopwatch.Frequency, 3);
+                } else {
+                    WriteStream(m_EventStream, "client_time", nowTime, TimeSpan.Zero);
+                    WriteStream(m_EventStream, "client_offset", clientOffset);
                 }
             }
 
@@ -1039,8 +1083,9 @@ namespace OGD {
                 if (ModuleReady(ModuleId.OpenGameData)) {
                     
                     // if we're not currently writing user data, and we have user data, then write it here
-                    if ((m_StatusFlags & StatusFlags.WritingUserData) == 0 && m_UserDataParamsBuffer.Length > 0) {
-                        WriteStream(m_EventStream, m_SchemaVersion == OGDSchemaVersion.V1_0 ? "player_history" : "user_data", ref m_UserDataParamsBuffer, false);
+                    // (under v1.0 it's sent in the query string as player_history instead)
+                    if (m_SchemaVersion == OGDSchemaVersion.V0_1 && (m_StatusFlags & StatusFlags.WritingUserData) == 0 && m_UserDataParamsBuffer.Length > 0) {
+                        WriteStream(m_EventStream, "user_data", ref m_UserDataParamsBuffer, false);
                     }
 
                     // similar deal, except for writing game state
@@ -1053,17 +1098,9 @@ namespace OGD {
                         WriteStream(m_EventStream, "game_segment", ref m_GameSegmentParamsBuffer, false);
                     }
 
-                    // the rest of the v1.0 context
-                    if (m_SchemaVersion == OGDSchemaVersion.V1_0) {
-                        if (!string.IsNullOrEmpty(m_GameConfigurationJson)) {
-                            WriteStream(m_EventStream, "game_configuration", m_GameConfigurationJson, false);
-                        }
-                        if (!string.IsNullOrEmpty(m_PrivateMetadataJson)) {
-                            WriteStream(m_EventStream, "private_metadata", m_PrivateMetadataJson, false);
-                        }
-                        if (!string.IsNullOrEmpty(m_PlatformJson)) {
-                            WriteStream(m_EventStream, "platform", m_PlatformJson, false);
-                        }
+                    // the rest of the v1.0 context that's sent with each event
+                    if (m_SchemaVersion == OGDSchemaVersion.V1_0 && !string.IsNullOrEmpty(m_PrivateMetadataJson)) {
+                        WriteStream(m_EventStream, "private_metadata", m_PrivateMetadataJson, false);
                     }
                     
                     OGDLogUtils.TrimEnd(m_EventStream, ',');
@@ -1596,6 +1633,9 @@ namespace OGD {
             m_UserDataParamsBuffer.Write(userData);
             OGDLogUtils.EscapeJSONInline(ref m_UserDataParamsBuffer);
             m_StatusFlags &= ~StatusFlags.WritingUserData;
+            if ((m_StatusFlags & StatusFlags.Initialized) != 0) {
+                RefreshEndpointUris();
+            }
         }
 
         /// <summary>
@@ -1616,6 +1656,9 @@ namespace OGD {
             m_UserDataParamsBuffer.Write(userData);
             OGDLogUtils.EscapeJSONInline(ref m_UserDataParamsBuffer);
             m_StatusFlags &= ~StatusFlags.WritingUserData;
+            if ((m_StatusFlags & StatusFlags.Initialized) != 0) {
+                RefreshEndpointUris();
+            }
         }
 
         /// <summary>
@@ -1762,6 +1805,9 @@ namespace OGD {
                 EndBuffer(ref m_UserDataParamsBuffer, true);
 
                 m_StatusFlags &= ~StatusFlags.WritingUserData;
+                if ((m_StatusFlags & StatusFlags.Initialized) != 0) {
+                    RefreshEndpointUris();
+                }
             }
         }
 
@@ -1771,10 +1817,13 @@ namespace OGD {
 
         /// <summary>
         /// Writes shared game configuration as the given JSON-formatted data.
-        /// Pass null to clear it. Only sent under schema v1.0.
+        /// Pass null to clear it. Only sent under schema v1.0, in the query string.
         /// </summary>
         public void GameConfiguration(string gameConfiguration) {
-            m_GameConfigurationJson = new StringBuilder().EscapeJSON(gameConfiguration).ToString();
+            m_GameConfigurationJson = gameConfiguration;
+            if ((m_StatusFlags & StatusFlags.Initialized) != 0) {
+                RefreshEndpointUris();
+            }
         }
 
         #endregion // Game Configuration
@@ -2268,7 +2317,7 @@ namespace OGD {
 
         #region String Assembly
 
-        static private unsafe Uri BuildOGDUrl(OGDLogConsts ogdConsts, SessionConsts session, OGDSchemaVersion schemaVersion, string overrideUrl, string overrideAppId) {
+        static private unsafe Uri BuildOGDUrl(OGDLogConsts ogdConsts, SessionConsts session, OGDSchemaVersion schemaVersion, string overrideUrl, string overrideAppId, string sessionContext) {
             char* buffer = stackalloc char[512];
             FixedCharBuffer charBuff = new FixedCharBuffer("url", buffer, 512);
             
@@ -2291,7 +2340,7 @@ namespace OGD {
             charBuff.Write("&session_id=");
             charBuff.Write(session.SessionId);
             if (!string.IsNullOrEmpty(ogdConsts.AppBranch)) {
-                charBuff.Write("&app_branch=");
+                charBuff.Write(schemaVersion == OGDSchemaVersion.V0_1 ? "&app_branch=" : "&condition=");
                 charBuff.Write(Uri.EscapeDataString(ogdConsts.AppBranch));
             }
             if (!string.IsNullOrEmpty(session.UserId)) {
@@ -2303,7 +2352,8 @@ namespace OGD {
                 charBuff.Write(Uri.EscapeDataString(session.InstanceId));
             }
 
-            string uriString = charBuff.ToString();
+            // session context can be longer than the fixed buffer allows, so it's added after
+            string uriString = charBuff.ToString() + sessionContext;
             try {
                 return new Uri(uriString);
             } catch(UriFormatException _) {
@@ -2556,13 +2606,19 @@ namespace OGD {
             OGDLogUtils.AppendNumber(stream, value, 0, precision).Append(',');
         }
 
-        static private void WriteStream(StringBuilder stream, string parameterName, DateTime value) {
-            // format: yyyy-MM-dd HH:mm:ss.fffZ
+        static private void WriteStream(StringBuilder stream, string parameterName, DateTime value, TimeSpan offset) {
+            // format: yyyy-MM-dd HH:mm:ss.fff+HH:mm, with Z in place of the offset when it's zero
             stream.Append('"').Append(parameterName).Append("\":\"")
                 .AppendInteger(value.Year, 4).Append('-').AppendInteger(value.Month, 2).Append('-').AppendInteger(value.Day, 2)
                 .Append(' ').AppendInteger(value.Hour, 2).Append(':').AppendInteger(value.Minute, 2).Append(':').AppendInteger(value.Second, 2)
-                .Append('.').AppendInteger(value.Millisecond, 3).Append('Z')
-                .Append("\",");
+                .Append('.').AppendInteger(value.Millisecond, 3);
+            if (offset == TimeSpan.Zero) {
+                stream.Append('Z');
+            } else {
+                stream.Append(offset < TimeSpan.Zero ? '-' : '+')
+                    .AppendInteger(Math.Abs(offset.Hours), 2).Append(':').AppendInteger(Math.Abs(offset.Minutes), 2);
+            }
+            stream.Append("\",");
         }
 
         /// <summary>
