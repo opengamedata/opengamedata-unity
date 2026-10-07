@@ -133,7 +133,8 @@ namespace OGD {
             Flushing = 0x08,
             WritingUserData = 0x10,
             WritingGameState = 0x20,
-            Disposed = 0x40
+            Disposed = 0x40,
+            WritingGameSegment = 0x80
         }
 
         /// <summary>
@@ -243,6 +244,7 @@ namespace OGD {
         private FixedCharBuffer m_EventCustomParamsBuffer;
         private FixedCharBuffer m_UserDataParamsBuffer;
         private FixedCharBuffer m_GameStateParamsBuffer;
+        private FixedCharBuffer m_GameSegmentParamsBuffer;
 
         // submit buffers
         private char[] m_EventStreamEncodingChars = new char[EventStreamBufferInitialSize];
@@ -290,10 +292,11 @@ namespace OGD {
             m_SessionConsts.SessionId = OGDLogUtils.UUIDint();
 
             unsafe {
-                m_DataBufferHead = (char*) Marshal.AllocHGlobal((eventParamsBufferSize + gameStateParamsBufferSize + playerDataParamsBufferSize) * sizeof(char));
+                m_DataBufferHead = (char*) Marshal.AllocHGlobal((eventParamsBufferSize + gameStateParamsBufferSize + playerDataParamsBufferSize + AdditionalStateBufferSize) * sizeof(char));
                 m_EventCustomParamsBuffer = new FixedCharBuffer("event_data", m_DataBufferHead, eventParamsBufferSize);
                 m_UserDataParamsBuffer = new FixedCharBuffer("player_data", m_EventCustomParamsBuffer.Tail, playerDataParamsBufferSize);
                 m_GameStateParamsBuffer = new FixedCharBuffer("game_state", m_UserDataParamsBuffer.Tail, gameStateParamsBufferSize);
+                m_GameSegmentParamsBuffer = new FixedCharBuffer("game_segment", m_GameStateParamsBuffer.Tail, AdditionalStateBufferSize);
 
                 #if HAS_UPLOAD_NATIVE_ARRAY
                 m_SubmitBufferHead = (byte*) Marshal.AllocHGlobal(EventStreamBufferInitialSize);
@@ -392,6 +395,7 @@ namespace OGD {
                     m_EventCustomParamsBuffer = default(FixedCharBuffer);
                     m_GameStateParamsBuffer = default(FixedCharBuffer);
                     m_UserDataParamsBuffer = default(FixedCharBuffer);
+                    m_GameSegmentParamsBuffer = default(FixedCharBuffer);
                 }
 
                 #if HAS_UPLOAD_NATIVE_ARRAY
@@ -971,6 +975,11 @@ namespace OGD {
                     if ((m_StatusFlags & StatusFlags.WritingGameState) == 0 && m_GameStateParamsBuffer.Length > 0) {
                         WriteStream(m_EventStream, "game_state", ref m_GameStateParamsBuffer, false);
                     }
+
+                    // and again for game segment, which only exists in schema v1.0
+                    if (m_SchemaVersion == OGDSchemaVersion.V1_0 && (m_StatusFlags & StatusFlags.WritingGameSegment) == 0 && m_GameSegmentParamsBuffer.Length > 0) {
+                        WriteStream(m_EventStream, "game_segment", ref m_GameSegmentParamsBuffer, false);
+                    }
                     
                     OGDLogUtils.TrimEnd(m_EventStream, ',');
                     m_EventStream.Append("},");
@@ -1266,6 +1275,193 @@ namespace OGD {
         }
 
         #endregion // Game State
+
+        #region Game Segment
+
+        // unlike game state, this is deliberately not mirrored to firebase
+
+        /// <summary>
+        /// Begins writing the shared game segment event parameter.
+        /// </summary>
+        public void BeginGameSegment() {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) != 0) {
+                throw new InvalidOperationException("Game Segment already open for writing");
+            }
+
+            m_StatusFlags |= StatusFlags.WritingGameSegment;
+            BeginBuffer(ref m_GameSegmentParamsBuffer);
+        }
+
+        /// <summary>
+        /// Begins setting shared game segment.
+        /// This returns a disposable GameSegmentScope object
+        /// that can accept parameters. It will
+        /// submit the game segment on dispose. Recommend to use
+        /// with the `using` keyword
+        /// </summary>
+        public GameSegmentScope OpenGameSegment() {
+            BeginGameSegment();
+            return new GameSegmentScope(this);
+        }
+
+        /// <summary>
+        /// Writes shared game segment as the given JSON-formatted data.
+        /// </summary>
+        public void GameSegment(string gameSegment) {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) != 0) {
+                throw new InvalidOperationException("Game Segment already open for writing");
+            }
+
+            m_StatusFlags |= StatusFlags.WritingGameSegment;
+            m_GameSegmentParamsBuffer.Clear();
+
+            m_GameSegmentParamsBuffer.Write(gameSegment);
+            OGDLogUtils.EscapeJSONInline(ref m_GameSegmentParamsBuffer);
+            m_StatusFlags &= ~StatusFlags.WritingGameSegment;
+        }
+
+        /// <summary>
+        /// Writes shared game segment as the given JSON-formatted data.
+        /// </summary>
+        public void GameSegment(StringBuilder gameSegment) {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) != 0) {
+                throw new InvalidOperationException("Game Segment already open for writing");
+            }
+
+            m_StatusFlags |= StatusFlags.WritingGameSegment;
+            m_GameSegmentParamsBuffer.Clear();
+
+            m_GameSegmentParamsBuffer.Write(gameSegment);
+            OGDLogUtils.EscapeJSONInline(ref m_GameSegmentParamsBuffer);
+            m_StatusFlags &= ~StatusFlags.WritingGameSegment;
+        }
+
+        /// <summary>
+        /// Clears the shared game segment.
+        /// </summary>
+        public void ClearGameSegment() {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) != 0) {
+                throw new InvalidOperationException("Game Segment already open for writing");
+            }
+
+            m_GameSegmentParamsBuffer.Clear();
+        }
+
+        /// <summary>
+        /// Writes a custom game segment string parameter.
+        /// </summary>
+        public void GameSegmentParam(string parameterName, string parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) == 0) {
+                throw new InvalidOperationException("Game Segment not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_GameSegmentParamsBuffer, parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game segment parameter as a null value.
+        /// </summary>
+        public void GameSegmentParamNull(string parameterName) {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) == 0) {
+                throw new InvalidOperationException("Game Segment not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBufferNull(ref m_GameSegmentParamsBuffer, parameterName);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game segment string parameter.
+        /// </summary>
+        public void GameSegmentParamJson(string parameterName, string parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) == 0) {
+                throw new InvalidOperationException("Game Segment not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBufferUnescaped(ref m_GameSegmentParamsBuffer, parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game segment string parameter.
+        /// </summary>
+        public void GameSegmentParam(string parameterName, StringBuilder parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) == 0) {
+                throw new InvalidOperationException("Game Segment not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_GameSegmentParamsBuffer, parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game segment string parameter.
+        /// </summary>
+        public void GameSegmentParamJson(string parameterName, StringBuilder parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) == 0) {
+                throw new InvalidOperationException("Game Segment not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBufferUnescaped(ref m_GameSegmentParamsBuffer, parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game segment integer parameter.
+        /// </summary>
+        public void GameSegmentParam(string parameterName, long parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) == 0) {
+                throw new InvalidOperationException("Game Segment not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_GameSegmentParamsBuffer, parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game segment float parameter.
+        /// </summary>
+        public void GameSegmentParam(string parameterName, double parameterValue, int precision = 3) {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) == 0) {
+                throw new InvalidOperationException("Game Segment not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_GameSegmentParamsBuffer, parameterName, parameterValue, precision);
+            }
+        }
+
+        /// <summary>
+        /// Writes a custom game segment boolean parameter.
+        /// </summary>
+        public void GameSegmentParam(string parameterName, bool parameterValue) {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) == 0) {
+                throw new InvalidOperationException("Game Segment not open for writing");
+            }
+
+            if (ModuleReady(ModuleId.OpenGameData)) {
+                WriteBuffer(ref m_GameSegmentParamsBuffer, parameterName, parameterValue);
+            }
+        }
+
+        /// <summary>
+        /// Submits game segment changes.
+        /// </summary>
+        public void SubmitGameSegment() {
+            if ((m_StatusFlags & StatusFlags.WritingGameSegment) != 0) {
+                EndBuffer(ref m_GameSegmentParamsBuffer, true);
+                m_StatusFlags &= ~StatusFlags.WritingGameSegment;
+            }
+        }
+
+        #endregion // Game Segment
 
         #region User Data
 
