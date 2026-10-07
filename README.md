@@ -49,6 +49,7 @@ An instance of `OGDLog` can be created with the following format:
 - `myAppVersion`: the current version of the app for all logging events
 
 To send a user id along with every event, call `OGDLog.SetUserId(userId);`
+To send an instance id along with every event (schema `1.0` only), call `OGDLog.SetInstanceId(instanceId);`
 To reset application-level constants, call `OGDLog.Initialize(appConsts);`
 
 ### Events
@@ -107,8 +108,14 @@ moves to the new standard without any code change. To stay on the old schema:
 m_Logger.SetSchemaVersion(OGDSchemaVersion.V0_1);
 ```
 
-Under `V1_0`, `app_version` becomes `game_version`, and `source_version` (which
-mirrors `game_version`) and `schema_version` are added.
+Under `V1_0`:
+
+- `app_id`, `app_version`, `user_id`, `user_data`, `event_sequence_index` and `client_time`
+are sent as `game_id`, `game_version`, `player_id`, `player_history`, `session_sequence_index`
+and `timestamp`.
+- `source_version` (which mirrors `game_version`) and `schema_version` are added.
+- Each event also carries `game_time` (seconds since the session started) and `platform`
+(operating system, device and engine version, filled in automatically).
 
 ### Game State
 
@@ -156,6 +163,17 @@ m_Logger.ClearGameSegment()
 
 It is not sent while the logger is set to `OGDSchemaVersion.V0_1`, and unlike
 `game_state` it is not mirrored to Firebase Analytics.
+
+### Game Configuration and Private Metadata
+
+The shared `game_configuration` and `private_metadata` parameters are set from JSON-formatted
+strings and attached to every event until they change. Pass `null` to clear them. Both are only
+sent under schema `1.0`.
+
+```csharp
+m_Logger.GameConfiguration("{\"difficulty\":\"hard\"}");
+m_Logger.PrivateMetadata("{\"classroom\":\"7b\"}");
+```
 
 ### User Data
 

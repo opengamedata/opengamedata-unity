@@ -220,6 +220,10 @@ namespace OGD {
         private StatusFlags m_StatusFlags;
         private SettingsFlags m_Settings;
         private OGDSchemaVersion m_SchemaVersion = OGDSchemaVersion.V1_0;
+        private long m_SessionStartTick;
+        private string m_PlatformJson;
+        private string m_GameConfigurationJson;
+        private string m_PrivateMetadataJson;
         private ModuleStatus[] m_ModuleStatus = new ModuleStatus[(int) ModuleId.COUNT];
         private long m_NextFlushTick = -1;
         private long m_NextFlushTickBase;
@@ -290,6 +294,7 @@ namespace OGD {
                 throw new ArgumentException("Player data parameter buffer must be at least 256b", "playerDataParamsBufferSize");
             }
             m_SessionConsts.SessionId = OGDLogUtils.UUIDint();
+            m_SessionStartTick = Stopwatch.GetTimestamp();
 
             unsafe {
                 m_DataBufferHead = (char*) Marshal.AllocHGlobal((eventParamsBufferSize + gameStateParamsBufferSize + playerDataParamsBufferSize + AdditionalStateBufferSize) * sizeof(char));
@@ -453,6 +458,11 @@ namespace OGD {
             m_OGDConsts = constants;
             RefreshEndpointUris();
 
+            if (m_PlatformJson == null) {
+                string platformJson = PlatformJson(SystemInfo.operatingSystem, SystemInfo.deviceModel, "Unity " + Application.unityVersion);
+                m_PlatformJson = new StringBuilder().EscapeJSON(platformJson).ToString();
+            }
+
             m_StatusFlags |= StatusFlags.Initialized;
             SetModuleStatus(ModuleId.OpenGameData, ModuleStatus.Ready);
 
@@ -481,6 +491,17 @@ namespace OGD {
                 if (ModuleReady(ModuleId.Firebase)) {
                     Firebase_SetSessionConsts(m_SessionConsts);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Changes the InstanceId.
+        /// This is submitted with every event under schema v1.0.
+        /// </summary>
+        public void SetInstanceId(string instanceId) {
+            if (m_SessionConsts.InstanceId != instanceId) {
+                m_SessionConsts.InstanceId = instanceId;
+                RefreshEndpointUris();
             }
         }
 
@@ -566,6 +587,7 @@ namespace OGD {
         /// </summary>
         public void ResetSessionId() {
             m_SessionConsts.SessionId = OGDLogUtils.UUIDint();
+            m_SessionStartTick = Stopwatch.GetTimestamp();
 
             // since we can't manually reset firebase session,
             // we should at least make sure event sequence indices will not overlap
@@ -746,11 +768,15 @@ namespace OGD {
 
             // if OpenGameData logging is enabled
             if (ModuleReady(ModuleId.OpenGameData)) {
+                bool v1 = m_SchemaVersion == OGDSchemaVersion.V1_0;
                 m_EventStream.Append('{');
                 WriteStream(m_EventStream, "event_name", eventName);
-                WriteStream(m_EventStream, "event_sequence_index", eventSequenceIndex);
-                WriteStream(m_EventStream, "client_time", nowTime);
+                WriteStream(m_EventStream, v1 ? "session_sequence_index" : "event_sequence_index", eventSequenceIndex);
+                WriteStream(m_EventStream, v1 ? "timestamp" : "client_time", nowTime);
                 WriteStream(m_EventStream, "client_offset", clientOffset);
+                if (v1) {
+                    WriteStream(m_EventStream, "game_time", (Stopwatch.GetTimestamp() - m_SessionStartTick) / (double) Stopwatch.Frequency, 3);
+                }
             }
 
             if (ModuleReady(ModuleId.Firebase)) {
@@ -968,7 +994,7 @@ namespace OGD {
                     
                     // if we're not currently writing user data, and we have user data, then write it here
                     if ((m_StatusFlags & StatusFlags.WritingUserData) == 0 && m_UserDataParamsBuffer.Length > 0) {
-                        WriteStream(m_EventStream, "user_data", ref m_UserDataParamsBuffer, false);
+                        WriteStream(m_EventStream, m_SchemaVersion == OGDSchemaVersion.V1_0 ? "player_history" : "user_data", ref m_UserDataParamsBuffer, false);
                     }
 
                     // similar deal, except for writing game state
@@ -979,6 +1005,19 @@ namespace OGD {
                     // and again for game segment, which only exists in schema v1.0
                     if (m_SchemaVersion == OGDSchemaVersion.V1_0 && (m_StatusFlags & StatusFlags.WritingGameSegment) == 0 && m_GameSegmentParamsBuffer.Length > 0) {
                         WriteStream(m_EventStream, "game_segment", ref m_GameSegmentParamsBuffer, false);
+                    }
+
+                    // the rest of the v1.0 context
+                    if (m_SchemaVersion == OGDSchemaVersion.V1_0) {
+                        if (!string.IsNullOrEmpty(m_GameConfigurationJson)) {
+                            WriteStream(m_EventStream, "game_configuration", m_GameConfigurationJson, false);
+                        }
+                        if (!string.IsNullOrEmpty(m_PrivateMetadataJson)) {
+                            WriteStream(m_EventStream, "private_metadata", m_PrivateMetadataJson, false);
+                        }
+                        if (!string.IsNullOrEmpty(m_PlatformJson)) {
+                            WriteStream(m_EventStream, "platform", m_PlatformJson, false);
+                        }
                     }
                     
                     OGDLogUtils.TrimEnd(m_EventStream, ',');
@@ -1682,6 +1721,30 @@ namespace OGD {
 
         #endregion // User Data
 
+        #region Game Configuration
+
+        /// <summary>
+        /// Writes shared game configuration as the given JSON-formatted data.
+        /// Pass null to clear it. Only sent under schema v1.0.
+        /// </summary>
+        public void GameConfiguration(string gameConfiguration) {
+            m_GameConfigurationJson = new StringBuilder().EscapeJSON(gameConfiguration).ToString();
+        }
+
+        #endregion // Game Configuration
+
+        #region Private Metadata
+
+        /// <summary>
+        /// Writes shared private metadata as the given JSON-formatted data.
+        /// Pass null to clear it. Only sent under schema v1.0.
+        /// </summary>
+        public void PrivateMetadata(string privateMetadata) {
+            m_PrivateMetadataJson = new StringBuilder().EscapeJSON(privateMetadata).ToString();
+        }
+
+        #endregion // Private Metadata
+
         #region Validation File
 
         private bool CreateValidationFileStream(string path) {
@@ -2164,7 +2227,7 @@ namespace OGD {
             FixedCharBuffer charBuff = new FixedCharBuffer("url", buffer, 512);
             
             charBuff.Write(overrideUrl ?? OGDLogConsts.LogEndpoint);
-            charBuff.Write("?app_id=");
+            charBuff.Write(schemaVersion == OGDSchemaVersion.V0_1 ? "?app_id=" : "?game_id=");
             charBuff.Write(Uri.EscapeDataString((overrideAppId ?? ogdConsts.AppId).ToUpperInvariant()));
             charBuff.Write("&log_version=");
             charBuff.Write(ogdConsts.ClientLogVersion);
@@ -2186,8 +2249,12 @@ namespace OGD {
                 charBuff.Write(Uri.EscapeDataString(ogdConsts.AppBranch));
             }
             if (!string.IsNullOrEmpty(session.UserId)) {
-                charBuff.Write("&user_id=");
+                charBuff.Write(schemaVersion == OGDSchemaVersion.V0_1 ? "&user_id=" : "&player_id=");
                 charBuff.Write(Uri.EscapeDataString(session.UserId));
+            }
+            if (schemaVersion == OGDSchemaVersion.V1_0 && !string.IsNullOrEmpty(session.InstanceId)) {
+                charBuff.Write("&instance_id=");
+                charBuff.Write(Uri.EscapeDataString(session.InstanceId));
             }
 
             string uriString = charBuff.ToString();
@@ -2197,6 +2264,14 @@ namespace OGD {
                 UnityEngine.Debug.LogErrorFormat("[OGDLog] Failed to parse '{0}' to a URI", uriString);
                 return null;
             }
+        }
+
+        static private string PlatformJson(string os, string device, string engine) {
+            return new StringBuilder(128)
+                .Append("{\"os\":\"").EscapeJSON(os)
+                .Append("\",\"device\":\"").EscapeJSON(device)
+                .Append("\",\"engine\":\"").EscapeJSON(engine)
+                .Append("\"}").ToString();
         }
 
         // BUFFERS
@@ -2430,6 +2505,11 @@ namespace OGD {
             stream.Append('"').Append(parameterName).Append("\":").AppendInteger(value, 0).Append(',');
         }
 
+        static private void WriteStream(StringBuilder stream, string parameterName, double value, int precision) {
+            stream.Append('"').Append(parameterName).Append("\":");
+            OGDLogUtils.AppendNumber(stream, value, 0, precision).Append(',');
+        }
+
         static private void WriteStream(StringBuilder stream, string parameterName, DateTime value) {
             // format: yyyy-MM-dd HH:mm:ss.fffZ
             stream.Append('"').Append(parameterName).Append("\":\"")
@@ -2463,6 +2543,17 @@ namespace OGD {
             stream.Append('"').Append(parameterName).Append("\":\"")
                 .EscapeJSON(json)
                 .Append("\",");
+        }
+
+        static private void WriteStream(StringBuilder stream, string parameterName, string json, bool escape) {
+            stream.Append('"').Append(parameterName).Append("\":\"");
+            if (escape) {
+                stream.EscapeJSON(json);
+            } else {
+                stream.Append(json);
+            }
+
+            stream.Append("\",");
         }
 
         static private void WriteStream(StringBuilder stream, string parameterName, StringBuilder json) {
