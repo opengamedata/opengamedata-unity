@@ -30,6 +30,7 @@ namespace OGD {
 
         /// <summary>
         /// (Optional) The current branch of the app.
+        /// Sent as condition under schema v1.0.
         /// </summary>
         public string AppBranch;
 
