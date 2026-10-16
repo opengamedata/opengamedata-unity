@@ -200,7 +200,8 @@ namespace OGD {
         private enum UploadResultType {
             Success,
             Failure,
-            CriticalFailure
+            CriticalFailure,
+            Rejected
         }
 
         // constants
@@ -1957,7 +1958,8 @@ namespace OGD {
         private UploadResultType HandleBasePostResponse(UnityWebRequest request, ref StreamState state, EndpointType endpoint, string debugTag) {
             UploadResultType resultType = GetUploadResult(request);
 
-            if (resultType == UploadResultType.Success) {
+            // a batch the server rejected won't do any better next time, so it's skipped like a sent one
+            if (resultType == UploadResultType.Success || resultType == UploadResultType.Rejected) {
                 state.FailureCounter = 0;
                 state.BaseOffset += state.SentLength;
             } else {
@@ -1988,8 +1990,15 @@ namespace OGD {
                                 debugTag, request.error, request.responseCode, request.uploadedBytes, request.downloadedBytes);
                             break;
                         }
+                        case UploadResultType.Rejected: {
+                            UnityEngine.Debug.LogWarningFormat("[OGDLog] Upload '{0}' rejected and dropped - error '{1}' with response code {2}, {3}U/{4}D, response '{5}'",
+                                debugTag, request.error, request.responseCode, request.uploadedBytes, request.downloadedBytes, request.downloadHandler.text);
+                            break;
+                        }
                     }
                 }
+            } else if (resultType == UploadResultType.Rejected) {
+                Console.WriteLine("[OGDLog] Upload '{0}' rejected and dropped - response code {1}", debugTag, request.responseCode);
             }
 
             request.Dispose();
@@ -2017,7 +2026,7 @@ namespace OGD {
 
             // if we still have events to submit, let's flush again
             if (m_EventStream.Length > 0) {
-                if (resultType == UploadResultType.Success) {
+                if (resultType == UploadResultType.Success || resultType == UploadResultType.Rejected) {
                     Flush();
                 } else {
                     TryScheduleFlush(m_SchedulingConfig.FlushFailureDelay + (state.FailureCounter - 1) * m_SchedulingConfig.RepeatedFailureDelay);
@@ -2031,6 +2040,8 @@ namespace OGD {
             long code = request.responseCode;
             bool isError0 = code <= 0;
             bool isError5xx = code >= 500;
+            // retrying won't help with a 4xx, except a timeout (408) or rate limit (429)
+            bool isRejected = code >= 400 && code < 500 && code != 408 && code != 429;
 #if HAS_UWR_RESULT
             bool requestError = request.result != UnityWebRequest.Result.Success;
 #else
@@ -2040,6 +2051,8 @@ namespace OGD {
 
             if (isError0 || uploadFailed) {
                 return UploadResultType.CriticalFailure;
+            } else if (isRejected) {
+                return UploadResultType.Rejected;
             } else if (requestError || isError5xx) {
                 return UploadResultType.Failure;
             } else {
