@@ -112,9 +112,9 @@ using(EventScope evt = m_Logger.NewEvent(OGDEvents.Segmentation.SpatialRegions.E
 }
 ```
 
-Events logged by name only are sent with an `event_id` of `0`. For game-specific events, use a code from the
-`X900`-`X999` range of any block, or from the `9000` block. `OGDEvents.cs` is generated from the standard in
-`ogd-standards`, so don't edit it by hand.
+Events logged by name only are sent with an `event_id` of `9999`, the standard's code for an event without one.
+For game-specific events, use a code from the `X900`-`X999` range of any block, or from the `9000` block other
+than `9999`. `OGDEvents.cs` is generated from the standard in `ogd-standards`, so don't edit it by hand.
 
 ### Schema Version
 
@@ -187,15 +187,13 @@ m_Logger.ClearGameSegment()
 It is not sent while the logger is set to `OGDSchemaVersion.V0_1`, and unlike
 `game_state` it is not mirrored to Firebase Analytics.
 
-### Game Configuration and Private Metadata
+### Game Configuration
 
-The shared `game_configuration` and `private_metadata` parameters are set from JSON-formatted
-strings and sent until they change. Pass `null` to clear them. Both are only sent under schema
-`1.0`.
+The shared `game_configuration` parameter is set from a JSON-formatted string and sent until it
+changes. Pass `null` to clear it. It is only sent under schema `1.0`.
 
 ```csharp
 m_Logger.GameConfiguration("{\"difficulty\":\"hard\"}");
-m_Logger.PrivateMetadata("{\"classroom\":\"7b\"}");
 ```
 
 ### User Data

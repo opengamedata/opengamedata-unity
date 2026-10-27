@@ -249,7 +249,6 @@ namespace OGD {
         private FixedCharBuffer m_GameStateParamsBuffer;
         private FixedCharBuffer m_GameSegmentParamsBuffer;
         private FixedCharBuffer m_GameConfigurationBuffer;
-        private FixedCharBuffer m_PrivateMetadataBuffer;
         private FixedCharBuffer m_PlatformBuffer;
 
         // submit buffers
@@ -299,14 +298,13 @@ namespace OGD {
             m_SessionStartTick = Stopwatch.GetTimestamp();
 
             unsafe {
-                m_DataBufferHead = (char*) Marshal.AllocHGlobal((eventParamsBufferSize + gameStateParamsBufferSize + playerDataParamsBufferSize + 4 * AdditionalStateBufferSize) * sizeof(char));
+                m_DataBufferHead = (char*) Marshal.AllocHGlobal((eventParamsBufferSize + gameStateParamsBufferSize + playerDataParamsBufferSize + 3 * AdditionalStateBufferSize) * sizeof(char));
                 m_EventCustomParamsBuffer = new FixedCharBuffer("event_data", m_DataBufferHead, eventParamsBufferSize);
                 m_UserDataParamsBuffer = new FixedCharBuffer("player_data", m_EventCustomParamsBuffer.Tail, playerDataParamsBufferSize);
                 m_GameStateParamsBuffer = new FixedCharBuffer("game_state", m_UserDataParamsBuffer.Tail, gameStateParamsBufferSize);
                 m_GameSegmentParamsBuffer = new FixedCharBuffer("game_segment", m_GameStateParamsBuffer.Tail, AdditionalStateBufferSize);
                 m_GameConfigurationBuffer = new FixedCharBuffer("game_configuration", m_GameSegmentParamsBuffer.Tail, AdditionalStateBufferSize);
-                m_PrivateMetadataBuffer = new FixedCharBuffer("private_metadata", m_GameConfigurationBuffer.Tail, AdditionalStateBufferSize);
-                m_PlatformBuffer = new FixedCharBuffer("platform", m_PrivateMetadataBuffer.Tail, AdditionalStateBufferSize);
+                m_PlatformBuffer = new FixedCharBuffer("platform", m_GameConfigurationBuffer.Tail, AdditionalStateBufferSize);
 
                 #if HAS_UPLOAD_NATIVE_ARRAY
                 m_SubmitBufferHead = (byte*) Marshal.AllocHGlobal(EventStreamBufferInitialSize);
@@ -407,7 +405,6 @@ namespace OGD {
                     m_UserDataParamsBuffer = default(FixedCharBuffer);
                     m_GameSegmentParamsBuffer = default(FixedCharBuffer);
                     m_GameConfigurationBuffer = default(FixedCharBuffer);
-                    m_PrivateMetadataBuffer = default(FixedCharBuffer);
                     m_PlatformBuffer = default(FixedCharBuffer);
                 }
 
@@ -799,7 +796,8 @@ namespace OGD {
         /// Provide arguments with EventParam calls.
         /// </summary>
         public void BeginEvent(string eventName) {
-            BeginEvent(0, eventName);
+            // 9999 is the standard's event_id for an event logged without one
+            BeginEvent(9999, eventName);
         }
 
         /// <summary>
@@ -1102,11 +1100,6 @@ namespace OGD {
                     // and again for game segment, which only exists in schema v1.0
                     if (m_SchemaVersion == OGDSchemaVersion.V1_0 && (m_StatusFlags & StatusFlags.WritingGameSegment) == 0 && m_GameSegmentParamsBuffer.Length > 0) {
                         WriteStream(m_EventStream, "game_segment", ref m_GameSegmentParamsBuffer, false);
-                    }
-
-                    // the rest of the v1.0 context that's sent with each event
-                    if (m_SchemaVersion == OGDSchemaVersion.V1_0 && m_PrivateMetadataBuffer.Length > 0) {
-                        WriteStream(m_EventStream, "private_metadata", ref m_PrivateMetadataBuffer, false);
                     }
                     
                     OGDLogUtils.TrimEnd(m_EventStream, ',');
@@ -1833,18 +1826,6 @@ namespace OGD {
         }
 
         #endregion // Game Configuration
-
-        #region Private Metadata
-
-        /// <summary>
-        /// Writes shared private metadata as the given JSON-formatted data.
-        /// Pass null to clear it. Only sent under schema v1.0.
-        /// </summary>
-        public void PrivateMetadata(string privateMetadata) {
-            WriteEscapedBuffer(ref m_PrivateMetadataBuffer, privateMetadata);
-        }
-
-        #endregion // Private Metadata
 
         #region Validation File
 
