@@ -753,7 +753,8 @@ namespace OGD {
         /// Provide arguments with EventParam calls.
         /// </summary>
         public void BeginEvent(string eventName) {
-            BeginEvent(0, eventName);
+            // 9999 is the standard's event_id for an event logged without one
+            BeginEvent(9999, eventName);
         }
 
         /// <summary>
