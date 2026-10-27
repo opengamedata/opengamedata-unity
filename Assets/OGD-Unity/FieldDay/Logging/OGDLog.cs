@@ -247,7 +247,6 @@ namespace OGD {
         private FixedCharBuffer m_GameStateParamsBuffer;
         private FixedCharBuffer m_GameSegmentParamsBuffer;
         private FixedCharBuffer m_GameConfigurationBuffer;
-        private FixedCharBuffer m_PrivateMetadataBuffer;
         private FixedCharBuffer m_PlatformBuffer;
 
         // submit buffers
@@ -297,14 +296,13 @@ namespace OGD {
             m_SessionStartTick = Stopwatch.GetTimestamp();
 
             unsafe {
-                m_DataBufferHead = (char*) Marshal.AllocHGlobal((eventParamsBufferSize + gameStateParamsBufferSize + playerDataParamsBufferSize + 4 * AdditionalStateBufferSize) * sizeof(char));
+                m_DataBufferHead = (char*) Marshal.AllocHGlobal((eventParamsBufferSize + gameStateParamsBufferSize + playerDataParamsBufferSize + 3 * AdditionalStateBufferSize) * sizeof(char));
                 m_EventCustomParamsBuffer = new FixedCharBuffer("event_data", m_DataBufferHead, eventParamsBufferSize);
                 m_UserDataParamsBuffer = new FixedCharBuffer("player_data", m_EventCustomParamsBuffer.Tail, playerDataParamsBufferSize);
                 m_GameStateParamsBuffer = new FixedCharBuffer("game_state", m_UserDataParamsBuffer.Tail, gameStateParamsBufferSize);
                 m_GameSegmentParamsBuffer = new FixedCharBuffer("game_segment", m_GameStateParamsBuffer.Tail, AdditionalStateBufferSize);
                 m_GameConfigurationBuffer = new FixedCharBuffer("game_configuration", m_GameSegmentParamsBuffer.Tail, AdditionalStateBufferSize);
-                m_PrivateMetadataBuffer = new FixedCharBuffer("private_metadata", m_GameConfigurationBuffer.Tail, AdditionalStateBufferSize);
-                m_PlatformBuffer = new FixedCharBuffer("platform", m_PrivateMetadataBuffer.Tail, AdditionalStateBufferSize);
+                m_PlatformBuffer = new FixedCharBuffer("platform", m_GameConfigurationBuffer.Tail, AdditionalStateBufferSize);
 
                 #if HAS_UPLOAD_NATIVE_ARRAY
                 m_SubmitBufferHead = (byte*) Marshal.AllocHGlobal(EventStreamBufferInitialSize);
@@ -405,7 +403,6 @@ namespace OGD {
                     m_UserDataParamsBuffer = default(FixedCharBuffer);
                     m_GameSegmentParamsBuffer = default(FixedCharBuffer);
                     m_GameConfigurationBuffer = default(FixedCharBuffer);
-                    m_PrivateMetadataBuffer = default(FixedCharBuffer);
                     m_PlatformBuffer = default(FixedCharBuffer);
                 }
 
@@ -1062,9 +1059,6 @@ namespace OGD {
                     if (m_SchemaVersion == OGDSchemaVersion.V1_0) {
                         if (m_GameConfigurationBuffer.Length > 0) {
                             WriteStream(m_EventStream, "game_configuration", ref m_GameConfigurationBuffer, false);
-                        }
-                        if (m_PrivateMetadataBuffer.Length > 0) {
-                            WriteStream(m_EventStream, "private_metadata", ref m_PrivateMetadataBuffer, false);
                         }
                         if (m_PlatformBuffer.Length > 0) {
                             WriteStream(m_EventStream, "platform", ref m_PlatformBuffer, false);
@@ -1783,18 +1777,6 @@ namespace OGD {
         }
 
         #endregion // Game Configuration
-
-        #region Private Metadata
-
-        /// <summary>
-        /// Writes shared private metadata as the given JSON-formatted data.
-        /// Pass null to clear it. Only sent under schema v1.0.
-        /// </summary>
-        public void PrivateMetadata(string privateMetadata) {
-            WriteEscapedBuffer(ref m_PrivateMetadataBuffer, privateMetadata);
-        }
-
-        #endregion // Private Metadata
 
         #region Validation File
 
