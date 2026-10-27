@@ -137,8 +137,10 @@ and `timestamp`, and `AppBranch` is sent as `condition`.
 - Each event also carries `game_time` (seconds since the session started).
 - `player_history`, `game_configuration` and `platform` (operating system, device and engine
 version, filled in automatically) shouldn't change during a session, so they're sent once per
-request, in the query string, instead of with each event. Events waiting to be sent go out with
-the values current when they're sent, and since these go in the URL, keep them small.
+request instead of with each event. Events waiting to be sent go out with the values current
+when they're sent.
+- Only `game_id` and `schema_version` go in the URL. The other session fields are sent as form
+fields in the POST body, ahead of `data`, which is where `log.php` reads them.
 
 ### Game State
 
@@ -200,7 +202,7 @@ m_Logger.GameConfiguration("{\"difficulty\":\"hard\"}");
 
 The shared `user_data` parameter behaves similarly to the `game_state` parameter, with
 a nearly identical syntax, swapping `GameState` for `UserData` in method names. Under schema
-`1.0` it's sent as `player_history`, in the query string.
+`1.0` it's sent as `player_history`, once per request.
 
 ```csharp
 m_Logger.OpenUserData()
@@ -242,7 +244,7 @@ You can mirror your OpenGameData events to a secondary endpoint by calling `OGDL
 
 ### Validation Files
 
-You can record your OpenGameData events to a local file for validation by calling `OGDLog.ConfigureLocalValidation()` during setup. In builds, this file will be stored in the program's persistent data path under `OGD/Validation/[sessionId]/validation.json`. When running the project from the Unity Editor, the path is `Logs/OGD/Validation/[sessionId]/validation.json`. Under schema `1.0`, `player_history`, `game_configuration` and `platform` are sent in the query string, so they aren't in this file.
+You can record your OpenGameData events to a local file for validation by calling `OGDLog.ConfigureLocalValidation()` during setup. In builds, this file will be stored in the program's persistent data path under `OGD/Validation/[sessionId]/validation.json`. When running the project from the Unity Editor, the path is `Logs/OGD/Validation/[sessionId]/validation.json`. Under schema `1.0`, `player_history`, `game_configuration` and `platform` are sent once per request rather than with each event, so they aren't in this file.
 
 ## Debugging
 
