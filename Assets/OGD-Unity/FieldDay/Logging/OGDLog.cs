@@ -46,8 +46,6 @@ namespace OGD {
 
         static private readonly byte[] DataHeaderRawBytes = Encoding.UTF8.GetBytes("data=\"");
         static private readonly byte[] DataFooterRawBytes = Encoding.UTF8.GetBytes("\"");
-        static private readonly int DataHeaderRawByteSize = DataHeaderRawBytes.Length;
-        static private readonly int DataAdditionalByteCount = DataHeaderRawBytes.Length + DataFooterRawBytes.Length;
 
         #endregion // Consts
 
@@ -215,6 +213,7 @@ namespace OGD {
         // state
         private Uri m_Endpoint;
         private Uri m_MirrorEndpoint;
+        private byte[] m_UploadHeader;
         // TODO: allow for more than one mirrored endpoint?
         private uint m_EventSequence;
         private StatusFlags m_StatusFlags;
@@ -459,11 +458,12 @@ namespace OGD {
 
             s_Instance = this;
             m_OGDConsts = constants;
-            RefreshEndpointUris();
 
             if (m_PlatformBuffer.Length == 0) {
                 WriteEscapedBuffer(ref m_PlatformBuffer, PlatformJson(SystemInfo.operatingSystem, SystemInfo.deviceModel, "Unity " + Application.unityVersion));
             }
+
+            RefreshEndpointUris();
 
             m_StatusFlags |= StatusFlags.Initialized;
             SetModuleStatus(ModuleId.OpenGameData, ModuleStatus.Ready);
@@ -710,6 +710,62 @@ namespace OGD {
             } else {
                 m_MirrorEndpoint = null;
             }
+            m_UploadHeader = BuildUploadHeader();
+        }
+
+        /// <summary>
+        /// Builds what goes before the events in each upload's body. Under schema v1.0, log.php reads
+        /// every session field except game_id and schema_version from the body, so they go here,
+        /// once per request instead of with each event.
+        /// </summary>
+        private byte[] BuildUploadHeader() {
+            if (m_SchemaVersion == OGDSchemaVersion.V0_1) {
+                return DataHeaderRawBytes;
+            }
+
+            MemoryStream header = new MemoryStream(512);
+            WritePostParam(header, "log_version", m_OGDConsts.ClientLogVersion.ToString());
+            // source_version mirrors game_version: this library only logs events the game itself produced
+            WritePostParam(header, "game_version", m_OGDConsts.AppVersion);
+            WritePostParam(header, "source_version", m_OGDConsts.AppVersion);
+            WritePostParam(header, "session_id", m_SessionConsts.SessionId.ToString());
+            WritePostParam(header, "condition", m_OGDConsts.AppBranch);
+            WritePostParam(header, "player_id", m_SessionConsts.UserId);
+            WritePostParam(header, "instance_id", m_SessionConsts.InstanceId);
+
+            // these buffers are stored escaped for the event body, so they're unescaped back to plain JSON here
+            if (m_GameConfigurationBuffer.Length > 0) {
+                WritePostParam(header, "game_configuration", new StringBuilder().UnescapeJSON(ref m_GameConfigurationBuffer).ToString());
+            }
+            if (m_PlatformBuffer.Length > 0) {
+                WritePostParam(header, "platform", new StringBuilder().UnescapeJSON(ref m_PlatformBuffer).ToString());
+            }
+            if ((m_StatusFlags & StatusFlags.WritingUserData) == 0 && m_UserDataParamsBuffer.Length > 0) {
+                WritePostParam(header, "player_history", new StringBuilder().UnescapeJSON(ref m_UserDataParamsBuffer).ToString());
+            }
+
+            header.Write(DataHeaderRawBytes, 0, DataHeaderRawBytes.Length);
+            return header.ToArray();
+        }
+
+        /// <summary>
+        /// Writes a name=value form field and the separator after it, escaped the same way as the
+        /// event data. Empty values are left out.
+        /// </summary>
+        static private void WritePostParam(MemoryStream stream, string name, string value) {
+            if (string.IsNullOrEmpty(value)) {
+                return;
+            }
+
+            // lone surrogates become U+FFFD here, the same as in the event data
+            byte[] raw = Encoding.UTF8.GetBytes(value);
+            byte[] escaped = new byte[raw.Length * 3];
+            int escapedLength = OGDLogUtils.EscapePostData(raw, 0, raw.Length, escaped, 0);
+            byte[] nameBytes = Encoding.ASCII.GetBytes(name);
+            stream.Write(nameBytes, 0, nameBytes.Length);
+            stream.WriteByte((byte) '=');
+            stream.Write(escaped, 0, escapedLength);
+            stream.WriteByte((byte) '&');
         }
 
         #endregion // Configuration
@@ -783,11 +839,13 @@ namespace OGD {
                 m_EventStream.Append('{');
                 WriteStream(m_EventStream, "event_name", eventName);
                 WriteStream(m_EventStream, v1 ? "session_sequence_index" : "event_sequence_index", eventSequenceIndex);
-                WriteStream(m_EventStream, v1 ? "timestamp" : "client_time", nowTime);
-                WriteStream(m_EventStream, "client_offset", clientOffset);
                 if (v1) {
+                    WriteStream(m_EventStream, "timestamp", nowTime + clientOffset, clientOffset);
                     WriteStream(m_EventStream, "event_id", eventId);
                     WriteStream(m_EventStream, "game_time", (Stopwatch.GetTimestamp() - m_SessionStartTick) / (double) Stopwatch.Frequency, 3);
+                } else {
+                    WriteStream(m_EventStream, "client_time", nowTime, TimeSpan.Zero);
+                    WriteStream(m_EventStream, "client_offset", clientOffset);
                 }
             }
 
@@ -1042,8 +1100,9 @@ namespace OGD {
                 if (ModuleReady(ModuleId.OpenGameData)) {
                     
                     // if we're not currently writing user data, and we have user data, then write it here
-                    if ((m_StatusFlags & StatusFlags.WritingUserData) == 0 && m_UserDataParamsBuffer.Length > 0) {
-                        WriteStream(m_EventStream, m_SchemaVersion == OGDSchemaVersion.V1_0 ? "player_history" : "user_data", ref m_UserDataParamsBuffer, false);
+                    // (under v1.0 it's sent once per request as player_history instead)
+                    if (m_SchemaVersion == OGDSchemaVersion.V0_1 && (m_StatusFlags & StatusFlags.WritingUserData) == 0 && m_UserDataParamsBuffer.Length > 0) {
+                        WriteStream(m_EventStream, "user_data", ref m_UserDataParamsBuffer, false);
                     }
 
                     // similar deal, except for writing game state
@@ -1054,16 +1113,6 @@ namespace OGD {
                     // and again for game segment, which only exists in schema v1.0
                     if (m_SchemaVersion == OGDSchemaVersion.V1_0 && (m_StatusFlags & StatusFlags.WritingGameSegment) == 0 && m_GameSegmentParamsBuffer.Length > 0) {
                         WriteStream(m_EventStream, "game_segment", ref m_GameSegmentParamsBuffer, false);
-                    }
-
-                    // the rest of the v1.0 context
-                    if (m_SchemaVersion == OGDSchemaVersion.V1_0) {
-                        if (m_GameConfigurationBuffer.Length > 0) {
-                            WriteStream(m_EventStream, "game_configuration", ref m_GameConfigurationBuffer, false);
-                        }
-                        if (m_PlatformBuffer.Length > 0) {
-                            WriteStream(m_EventStream, "platform", ref m_PlatformBuffer, false);
-                        }
                     }
                     
                     OGDLogUtils.TrimEnd(m_EventStream, ',');
@@ -1596,6 +1645,9 @@ namespace OGD {
             m_UserDataParamsBuffer.Write(userData);
             OGDLogUtils.EscapeJSONInline(ref m_UserDataParamsBuffer);
             m_StatusFlags &= ~StatusFlags.WritingUserData;
+            if ((m_StatusFlags & StatusFlags.Initialized) != 0) {
+                RefreshEndpointUris();
+            }
         }
 
         /// <summary>
@@ -1616,6 +1668,9 @@ namespace OGD {
             m_UserDataParamsBuffer.Write(userData);
             OGDLogUtils.EscapeJSONInline(ref m_UserDataParamsBuffer);
             m_StatusFlags &= ~StatusFlags.WritingUserData;
+            if ((m_StatusFlags & StatusFlags.Initialized) != 0) {
+                RefreshEndpointUris();
+            }
         }
 
         /// <summary>
@@ -1762,6 +1817,9 @@ namespace OGD {
                 EndBuffer(ref m_UserDataParamsBuffer, true);
 
                 m_StatusFlags &= ~StatusFlags.WritingUserData;
+                if ((m_StatusFlags & StatusFlags.Initialized) != 0) {
+                    RefreshEndpointUris();
+                }
             }
         }
 
@@ -1771,10 +1829,13 @@ namespace OGD {
 
         /// <summary>
         /// Writes shared game configuration as the given JSON-formatted data.
-        /// Pass null to clear it. Only sent under schema v1.0.
+        /// Pass null to clear it. Only sent under schema v1.0, once per request.
         /// </summary>
         public void GameConfiguration(string gameConfiguration) {
             WriteEscapedBuffer(ref m_GameConfigurationBuffer, gameConfiguration);
+            if ((m_StatusFlags & StatusFlags.Initialized) != 0) {
+                RefreshEndpointUris();
+            }
         }
 
         #endregion // Game Configuration
@@ -1968,7 +2029,8 @@ namespace OGD {
                 return false;
             }
 
-            EnsureBufferSize((length * 4 / 3) + EventStreamBufferPadding); // with some padding to ensure encoding doesn't result in any buffer overflows
+            byte[] header = m_UploadHeader;
+            EnsureBufferSize((length * 4 / 3) + EventStreamBufferPadding + header.Length); // with some padding to ensure encoding doesn't result in any buffer overflows
 
             // copy the current event stream into our buffer
             // since it's not enclosed with array brackets, we offset it by 1
@@ -1993,11 +2055,11 @@ namespace OGD {
 
 #if HAS_UPLOAD_NATIVE_ARRAY
             unsafe {
-                int totalUploadByteLength = dataByteLength + DataAdditionalByteCount;
+                int totalUploadByteLength = header.Length + dataByteLength + DataFooterRawBytes.Length;
                 NativeArray<byte> encodedData = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>(m_SubmitBufferHead, totalUploadByteLength, Allocator.None);
-                OGDLogUtils.CopyArray(DataHeaderRawBytes, 0, DataHeaderRawByteSize, m_SubmitBufferHead, 0, totalUploadByteLength); // copy header "data="
-                OGDLogUtils.CopyArray(DataFooterRawBytes, 0, DataFooterRawBytes.Length, m_SubmitBufferHead, DataHeaderRawByteSize + dataByteLength, totalUploadByteLength); // copy footer "
-                OGDLogUtils.CopyArray(m_EventStreamEncodingEscaped, 0, dataByteLength, m_SubmitBufferHead, DataHeaderRawByteSize, totalUploadByteLength); // copy escaped data
+                OGDLogUtils.CopyArray(header, 0, header.Length, m_SubmitBufferHead, 0, totalUploadByteLength); // copy header, ending in "data="
+                OGDLogUtils.CopyArray(DataFooterRawBytes, 0, DataFooterRawBytes.Length, m_SubmitBufferHead, header.Length + dataByteLength, totalUploadByteLength); // copy footer "
+                OGDLogUtils.CopyArray(m_EventStreamEncodingEscaped, 0, dataByteLength, m_SubmitBufferHead, header.Length, totalUploadByteLength); // copy escaped data
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
                 NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref encodedData, AtomicSafetyHandle.GetTempUnsafePtrSliceHandle());
 #endif
@@ -2008,10 +2070,10 @@ namespace OGD {
                 return true;
             }
 #else
-            byte[] encodedData = new byte[dataByteLength + DataAdditionalByteCount];
-            OGDLogUtils.CopyArray(DataHeaderRawBytes, 0, DataHeaderRawByteSize, encodedData, 0); // copy header "data="
-            OGDLogUtils.CopyArray(DataFooterRawBytes, 0, DataFooterRawBytes.Length, encodedData, DataHeaderRawByteSize + dataByteLength); // copy footer "
-            OGDLogUtils.CopyArray(m_EventStreamEncodingEscaped, 0, dataByteLength, encodedData, DataHeaderRawByteSize); // copy escaped data
+            byte[] encodedData = new byte[header.Length + dataByteLength + DataFooterRawBytes.Length];
+            OGDLogUtils.CopyArray(header, 0, header.Length, encodedData, 0); // copy header, ending in "data="
+            OGDLogUtils.CopyArray(DataFooterRawBytes, 0, DataFooterRawBytes.Length, encodedData, header.Length + dataByteLength); // copy footer "
+            OGDLogUtils.CopyArray(m_EventStreamEncodingEscaped, 0, dataByteLength, encodedData, header.Length); // copy escaped data
             packet = new UploadPacket() {
                 Data = encodedData,
                 CharsProcessed = length
@@ -2263,32 +2325,24 @@ namespace OGD {
             charBuff.Write(overrideUrl ?? OGDLogConsts.LogEndpoint);
             charBuff.Write(schemaVersion == OGDSchemaVersion.V0_1 ? "?app_id=" : "?game_id=");
             charBuff.Write(Uri.EscapeDataString((overrideAppId ?? ogdConsts.AppId).ToUpperInvariant()));
-            charBuff.Write("&log_version=");
-            charBuff.Write(ogdConsts.ClientLogVersion);
             if (schemaVersion == OGDSchemaVersion.V0_1) {
+                charBuff.Write("&log_version=");
+                charBuff.Write(ogdConsts.ClientLogVersion);
                 charBuff.Write("&app_version=");
                 charBuff.Write(Uri.EscapeDataString(ogdConsts.AppVersion));
+                charBuff.Write("&session_id=");
+                charBuff.Write(session.SessionId);
+                if (!string.IsNullOrEmpty(ogdConsts.AppBranch)) {
+                    charBuff.Write("&app_branch=");
+                    charBuff.Write(Uri.EscapeDataString(ogdConsts.AppBranch));
+                }
+                if (!string.IsNullOrEmpty(session.UserId)) {
+                    charBuff.Write("&user_id=");
+                    charBuff.Write(Uri.EscapeDataString(session.UserId));
+                }
             } else {
-                // source_version mirrors game_version: this library only logs events the game itself produced
-                charBuff.Write("&game_version=");
-                charBuff.Write(Uri.EscapeDataString(ogdConsts.AppVersion));
-                charBuff.Write("&source_version=");
-                charBuff.Write(Uri.EscapeDataString(ogdConsts.AppVersion));
-                charBuff.Write("&schema_version=1.0");
-            }
-            charBuff.Write("&session_id=");
-            charBuff.Write(session.SessionId);
-            if (!string.IsNullOrEmpty(ogdConsts.AppBranch)) {
-                charBuff.Write("&app_branch=");
-                charBuff.Write(Uri.EscapeDataString(ogdConsts.AppBranch));
-            }
-            if (!string.IsNullOrEmpty(session.UserId)) {
-                charBuff.Write(schemaVersion == OGDSchemaVersion.V0_1 ? "&user_id=" : "&player_id=");
-                charBuff.Write(Uri.EscapeDataString(session.UserId));
-            }
-            if (schemaVersion == OGDSchemaVersion.V1_0 && !string.IsNullOrEmpty(session.InstanceId)) {
-                charBuff.Write("&instance_id=");
-                charBuff.Write(Uri.EscapeDataString(session.InstanceId));
+                // the rest of the v1.0 session fields go in the body, see BuildUploadHeader
+                charBuff.Write("&schema_version=1.0-alpha");
             }
 
             string uriString = charBuff.ToString();
@@ -2552,13 +2606,19 @@ namespace OGD {
             OGDLogUtils.AppendNumber(stream, value, 0, precision).Append(',');
         }
 
-        static private void WriteStream(StringBuilder stream, string parameterName, DateTime value) {
-            // format: yyyy-MM-dd HH:mm:ss.fffZ
+        static private void WriteStream(StringBuilder stream, string parameterName, DateTime value, TimeSpan offset) {
+            // format: yyyy-MM-dd HH:mm:ss.fff+HH:mm, with Z in place of the offset when it's zero
             stream.Append('"').Append(parameterName).Append("\":\"")
                 .AppendInteger(value.Year, 4).Append('-').AppendInteger(value.Month, 2).Append('-').AppendInteger(value.Day, 2)
                 .Append(' ').AppendInteger(value.Hour, 2).Append(':').AppendInteger(value.Minute, 2).Append(':').AppendInteger(value.Second, 2)
-                .Append('.').AppendInteger(value.Millisecond, 3).Append('Z')
-                .Append("\",");
+                .Append('.').AppendInteger(value.Millisecond, 3);
+            if (offset == TimeSpan.Zero) {
+                stream.Append('Z');
+            } else {
+                stream.Append(offset < TimeSpan.Zero ? '-' : '+')
+                    .AppendInteger(Math.Abs(offset.Hours), 2).Append(':').AppendInteger(Math.Abs(offset.Minutes), 2);
+            }
+            stream.Append("\",");
         }
 
         /// <summary>

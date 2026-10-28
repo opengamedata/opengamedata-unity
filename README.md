@@ -119,7 +119,7 @@ than `9999`. `OGDEvents.cs` is generated from the standard in `ogd-standards`, s
 ### Schema Version
 
 The logger can emit either the original `0.1` event schema or the OpenGameData
-Event Standard `1.0`. It defaults to `1.0`, so a game that updates this package
+Event Standard `1.0`. It defaults to `V1_0`, so a game that updates this package
 moves to the new standard without any code change. To stay on the old schema:
 
 ```csharp
@@ -130,10 +130,17 @@ Under `V1_0`:
 
 - `app_id`, `app_version`, `user_id`, `user_data`, `event_sequence_index` and `client_time`
 are sent as `game_id`, `game_version`, `player_id`, `player_history`, `session_sequence_index`
-and `timestamp`.
+and `timestamp`, and `AppBranch` is sent as `condition`.
+- `timestamp` is local time with its offset from UTC, like `2026-10-06 18:55:00.123-05:00`
+(or `Z` in place of the offset when it's zero), so `client_offset` isn't sent.
 - `source_version` (which mirrors `game_version`) and `schema_version` are added.
-- Each event also carries `game_time` (seconds since the session started) and `platform`
-(operating system, device and engine version, filled in automatically).
+- Each event also carries `game_time` (seconds since the session started).
+- `player_history`, `game_configuration` and `platform` (operating system, device and engine
+version, filled in automatically) shouldn't change during a session, so they're sent once per
+request instead of with each event. Events waiting to be sent go out with the values current
+when they're sent.
+- Only `game_id` and `schema_version` go in the URL. The other session fields are sent as form
+fields in the POST body, ahead of `data`, which is where `log.php` reads them.
 
 ### Game State
 
@@ -184,8 +191,8 @@ It is not sent while the logger is set to `OGDSchemaVersion.V0_1`, and unlike
 
 ### Game Configuration
 
-The shared `game_configuration` parameter is set from a JSON-formatted string and attached to
-every event until it changes. Pass `null` to clear it. It is only sent under schema `1.0`.
+The shared `game_configuration` parameter is set from a JSON-formatted string and sent until it
+changes. Pass `null` to clear it. It is only sent under schema `1.0`.
 
 ```csharp
 m_Logger.GameConfiguration("{\"difficulty\":\"hard\"}");
@@ -194,7 +201,8 @@ m_Logger.GameConfiguration("{\"difficulty\":\"hard\"}");
 ### User Data
 
 The shared `user_data` parameter behaves similarly to the `game_state` parameter, with
-a nearly identical syntax, swapping `GameState` for `UserData` in method names.
+a nearly identical syntax, swapping `GameState` for `UserData` in method names. Under schema
+`1.0` it's sent as `player_history`, once per request.
 
 ```csharp
 m_Logger.OpenUserData()
@@ -236,7 +244,7 @@ You can mirror your OpenGameData events to a secondary endpoint by calling `OGDL
 
 ### Validation Files
 
-You can record your OpenGameData events to a local file for validation by calling `OGDLog.ConfigureLocalValidation()` during setup. In builds, this file will be stored in the program's persistent data path under `OGD/Validation/[sessionId]/validation.json`. When running the project from the Unity Editor, the path is `Logs/OGD/Validation/[sessionId]/validation.json`.
+You can record your OpenGameData events to a local file for validation by calling `OGDLog.ConfigureLocalValidation()` during setup. In builds, this file will be stored in the program's persistent data path under `OGD/Validation/[sessionId]/validation.json`. When running the project from the Unity Editor, the path is `Logs/OGD/Validation/[sessionId]/validation.json`. Under schema `1.0`, `player_history`, `game_configuration` and `platform` are sent once per request rather than with each event, so they aren't in this file.
 
 ## Debugging
 
