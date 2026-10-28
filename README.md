@@ -43,10 +43,17 @@ Run the following command from the root folder of your project:
 
 An instance of `OGDLog` can be created with the following format:
 
-`OGDLog log = new OGDLog(myAppId, myAppVersion)`
+```csharp
+OGDLog log = new OGDLog(new OGDLogConsts() {
+    AppId = myAppId,
+    AppVersion = myAppVersion,
+    ClientLogVersion = myLogVersion
+});
+```
 
 - `myAppId`: an identifier for this app within the database (ex. "AQUALAB")
-- `myAppVersion`: the current version of the app for all logging events
+- `myAppVersion`: the current version of the app for all logging events, as a string
+- `myLogVersion`: the version of the app's logging events, as an int (ex. 1), sent as `log_version`. Raise it when the app adds, removes or changes events, separately from `myAppVersion`. The logger warns if it isn't set.
 
 To send a user id along with every event, call `OGDLog.SetUserId(userId);`
 To send an instance id along with every event (schema `1.0` only), call `OGDLog.SetInstanceId(instanceId);`

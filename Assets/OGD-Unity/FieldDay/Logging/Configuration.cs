@@ -35,7 +35,8 @@ namespace OGD {
         public string AppBranch;
 
         /// <summary>
-        /// Client log version.
+        /// The version of the app's logging events, sent as log_version.
+        /// Raise it when the app adds, removes or changes events.
         /// </summary>
         public int ClientLogVersion;
 
