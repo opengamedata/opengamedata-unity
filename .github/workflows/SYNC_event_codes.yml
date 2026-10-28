@@ -1,0 +1,71 @@
+# Workflow to copy the event codes generated in ogd-standards, and open a pull request when they change.
+name: OGD Unity Logger - Event Code Sync Script
+run-name: ${{ format('{0} - {1}', github.workflow, github.event_name) }}
+on:
+  schedule:
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+  # sent by ogd-standards when its event codes change
+  repository_dispatch:
+    types: [event-codes-updated]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# each run pushes the same branch, so only one runs at a time
+concurrency:
+  group: event-code-sync
+
+jobs:
+  sync:
+    name: Sync the event codes
+    runs-on: ubuntu-latest
+    env:
+      BASE: main
+      BRANCH: sync/event-codes
+      SOURCE: generated/OGDEvents.cs
+      FILE: Assets/OGD-Unity/FieldDay/Logging/OGDEvents.cs
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+    - uses: actions/checkout@v7.0.1
+      with:
+        ref: ${{ env.BASE }}
+    - name: Get the generated event codes
+      uses: actions/checkout@v7.0.1
+      with:
+        repository: opengamedata/ogd-standards
+        path: ogd-standards
+    - name: Open a pull request if they changed
+      shell: bash
+      run: |
+        cp "ogd-standards/$SOURCE" "$FILE"
+        # a pull request from a fork can have the same branch name
+        open=$(gh pr list --head "$BRANCH" --state open --json number,isCrossRepository \
+          --jq 'map(select(.isCrossRepository | not)) | .[0].number // empty')
+        if git diff --quiet -- "$FILE"; then
+          echo "The event codes on $BASE are up to date."
+          # e.g. when they were updated by hand
+          if [ -n "$open" ]; then
+            gh pr close "$open" --delete-branch --comment "The event codes on $BASE are already up to date."
+          fi
+          exit 0
+        fi
+        if [ -n "$open" ] && git fetch -q origin "$BRANCH" && git diff --quiet FETCH_HEAD -- "$FILE"; then
+          echo "#$open already has these event codes."
+          exit 0
+        fi
+        source=$(git -C ogd-standards rev-parse HEAD)
+        body="Copies \`$SOURCE\` from opengamedata/ogd-standards@$source. Opened by the event code sync workflow."
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git switch -c "$BRANCH"
+        git add "$FILE"
+        git commit -m "Update the event codes from ogd-standards" -m "From opengamedata/ogd-standards@$source."
+        git push --force origin "$BRANCH"
+        if [ -z "$open" ]; then
+          gh pr create --base "$BASE" --head "$BRANCH" --title "Update the event codes from ogd-standards" --body "$body"
+        else
+          gh api --method PATCH "repos/{owner}/{repo}/pulls/$open" -f body="$body" > /dev/null
+        fi
