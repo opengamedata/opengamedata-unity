@@ -246,6 +246,10 @@ You can mirror your OpenGameData events to a secondary endpoint by calling `OGDL
 
 You can record your OpenGameData events to a local file for validation by calling `OGDLog.ConfigureLocalValidation()` during setup. In builds, this file will be stored in the program's persistent data path under `OGD/Validation/[sessionId]/validation.json`. When running the project from the Unity Editor, the path is `Logs/OGD/Validation/[sessionId]/validation.json`. Under schema `1.0`, `player_history`, `game_configuration` and `platform` are sent once per request rather than with each event, so they aren't in this file.
 
+### Testing Endpoint
+
+To send your events to the testing endpoint, `https://t-main-t---ogd-api-logger-test-3rlcoyes6a-uc.a.run.app/log.php`, instead of production, add the define `OGD_TESTING_ENDPOINT` to your Scripting Define Symbols. It only reads schema `1.0` requests for now.
+
 ## Debugging
 
 `OGDLog.SetDebug()` can be called to set the logger's debug flag. If set, all requests and responses associated with OpenGameData event logging will be logged to the console.

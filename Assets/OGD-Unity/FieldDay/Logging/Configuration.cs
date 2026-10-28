@@ -49,7 +49,7 @@ namespace OGD {
         /// </summary>
         public const string LogEndpoint =
 #if OGD_TESTING_ENDPOINT
-            "https://ogdlogger.fielddaylab.wisc.edu/logger-testing/log.php";
+            "https://t-main-t---ogd-api-logger-test-3rlcoyes6a-uc.a.run.app/log.php";
 #elif OGD_STAGING_ENDPOINT
             "https://ogd-staging.fielddaylab.wisc.edu/opengamedata-logger/master/log.php";
 #else
