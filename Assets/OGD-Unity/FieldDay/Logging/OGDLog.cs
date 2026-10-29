@@ -132,7 +132,8 @@ namespace OGD {
             WritingUserData = 0x10,
             WritingGameState = 0x20,
             Disposed = 0x40,
-            WritingGameSegment = 0x80
+            WritingGameSegment = 0x80,
+            CheckedLogVersion = 0x100
         }
 
         /// <summary>
@@ -820,6 +821,14 @@ namespace OGD {
         public void BeginEvent(int eventId, string eventName) {
             if ((m_StatusFlags & StatusFlags.Initialized) == 0) {
                 throw new InvalidOperationException("OGDLog must be initialized before any events are logged");
+            }
+
+            // checked at the first event rather than in Initialize, since the constants can be set again after the constructor
+            if ((m_StatusFlags & StatusFlags.CheckedLogVersion) == 0) {
+                m_StatusFlags |= StatusFlags.CheckedLogVersion;
+                if (m_OGDConsts.ClientLogVersion == 0) {
+                    UnityEngine.Debug.LogWarning("[OGDLog] ClientLogVersion isn't set, so log_version is sent as 0. Set it in the OGDLogConsts passed to OGDLog or Initialize.");
+                }
             }
 
             // finishes any pending event data

@@ -43,10 +43,17 @@ Run the following command from the root folder of your project:
 
 An instance of `OGDLog` can be created with the following format:
 
-`OGDLog log = new OGDLog(myAppId, myAppVersion)`
+```csharp
+OGDLog log = new OGDLog(new OGDLogConsts() {
+    AppId = myAppId,
+    AppVersion = myAppVersion,
+    ClientLogVersion = myLogVersion
+});
+```
 
 - `myAppId`: an identifier for this app within the database (ex. "AQUALAB")
-- `myAppVersion`: the current version of the app for all logging events
+- `myAppVersion`: the current version of the app for all logging events, as a string
+- `myLogVersion`: the version of the app's logging events, as an int (ex. 1), sent as `log_version`. Raise it when the app adds, removes or changes events, separately from `myAppVersion`. The logger warns if it isn't set.
 
 To send a user id along with every event, call `OGDLog.SetUserId(userId);`
 To send an instance id along with every event (schema `1.0` only), call `OGDLog.SetInstanceId(instanceId);`
@@ -245,6 +252,10 @@ You can mirror your OpenGameData events to a secondary endpoint by calling `OGDL
 ### Validation Files
 
 You can record your OpenGameData events to a local file for validation by calling `OGDLog.ConfigureLocalValidation()` during setup. In builds, this file will be stored in the program's persistent data path under `OGD/Validation/[sessionId]/validation.json`. When running the project from the Unity Editor, the path is `Logs/OGD/Validation/[sessionId]/validation.json`. Under schema `1.0`, `player_history`, `game_configuration` and `platform` are sent once per request rather than with each event, so they aren't in this file.
+
+### Testing Endpoint
+
+To send your events to the testing endpoint, `https://t-main-t---ogd-api-logger-test-3rlcoyes6a-uc.a.run.app/log.php`, instead of production, add the define `OGD_TESTING_ENDPOINT` to your Scripting Define Symbols. It only reads schema `1.0` requests for now.
 
 ## Debugging
 

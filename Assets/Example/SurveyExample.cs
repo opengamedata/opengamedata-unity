@@ -14,7 +14,11 @@ public class SurveyExample : MonoBehaviour {
     private OGDSurvey m_Survey;
 
     private IEnumerator Start() {
-        m_Logger = new OGDLog(appId, appVersion);
+        m_Logger = new OGDLog(new OGDLogConsts() {
+            AppId = appId,
+            AppVersion = appVersion.ToString(),
+            ClientLogVersion = clientLogVersion
+        });
         m_Logger.SetUserId("default");
         m_Logger.SetDebug(true);
 

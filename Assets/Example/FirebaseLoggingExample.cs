@@ -12,7 +12,11 @@ public class FirebaseLoggingExample : MonoBehaviour {
     private OGDLog m_Logger;
 
     private IEnumerator Start() {
-        m_Logger = new OGDLog(appId, appVersion);
+        m_Logger = new OGDLog(new OGDLogConsts() {
+            AppId = appId,
+            AppVersion = appVersion,
+            ClientLogVersion = clientLogVersion
+        });
         m_Logger.SetUserId("default");
         m_Logger.UseFirebase(firebase);
         m_Logger.SetDebug(true);
