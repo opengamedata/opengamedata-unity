@@ -115,6 +115,7 @@ using(EventScope evt = m_Logger.NewEvent(OGDEvents.Segmentation.SpatialRegions.E
 Events logged by name only are sent with an `event_id` of `9999`, the standard's code for an event without one.
 For game-specific events, use a code from the `X900`-`X999` range of any block, or from the `9000` block other
 than `9999`. `OGDEvents.cs` is generated from the standard in `ogd-standards`, so don't edit it by hand.
+A workflow checks `ogd-standards` every day and opens a pull request when the codes change.
 
 ### Schema Version
 
