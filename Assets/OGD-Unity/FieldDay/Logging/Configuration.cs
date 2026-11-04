@@ -69,6 +69,11 @@ namespace OGD {
         /// (Optional) The player's personal ID.
         /// </summary>
         public string UserId;
+
+        /// <summary>
+        /// (Optional) Identifier for this game instance. The standard defaults it to the session id.
+        /// </summary>
+        public string InstanceId;
     }
 
     /// <summary>
