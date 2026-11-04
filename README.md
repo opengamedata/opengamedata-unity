@@ -119,7 +119,7 @@ than `9999`. `OGDEvents.cs` is generated from the standard in `ogd-standards`, s
 ### Schema Version
 
 The logger can emit either the original `0.1` event schema or the OpenGameData
-Event Standard `1.0`. It defaults to `1.0`, so a game that updates this package
+Event Standard `1.0`. It defaults to `V1_0`, so a game that updates this package
 moves to the new standard without any code change. To stay on the old schema:
 
 ```csharp
