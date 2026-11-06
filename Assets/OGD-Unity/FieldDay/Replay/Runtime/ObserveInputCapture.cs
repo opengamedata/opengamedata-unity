@@ -36,10 +36,22 @@ namespace FieldDay.Replay {
   bool[] mouseHeld;
   bool[] keyHeld;
 
-  long Now() { return (long)Math.Round((Time.realtimeSinceStartupAsDouble - startedAt) * 1000.0); }
+  // realtimeSinceStartupAsDouble is 2020.2+. Wake is on 2019.4, so the older
+  // float path has to stay compilable: at float precision the mantissa is only
+  // ~24 bits, so after a few hours of uptime a 100ms cadence lands on
+  // indistinguishable timestamps. Both paths are unaffected by timeScale.
+  static double Clock() {
+#if UNITY_2020_2_OR_NEWER
+   return Time.realtimeSinceStartupAsDouble;
+#else
+   return Time.realtimeSinceStartup;
+#endif
+  }
+
+  long Now() { return (long)Math.Round((Clock() - startedAt) * 1000.0); }
 
   void OnEnable() {
-   startedAt = Time.realtimeSinceStartupAsDouble;
+   startedAt = Clock();
    spaceW = Mathf.Max(1, Screen.width);
    spaceH = Mathf.Max(1, Screen.height);
    recorder = new ObserveInputRecorder(spaceW, spaceH, Mathf.RoundToInt(1000f / sampleHz), gridPrecision);
