@@ -255,7 +255,7 @@ You can record your OpenGameData events to a local file for validation by callin
 
 ### Testing Endpoint
 
-To send your events to the testing endpoint, `https://t-main-t---ogd-api-logger-test-3rlcoyes6a-uc.a.run.app/log.php`, instead of production, add the define `OGD_TESTING_ENDPOINT` to your Scripting Define Symbols. It only reads schema `1.0` requests for now.
+To send your events to the testing endpoint, `https://t-main-t---ogd-api-logger-test-3rlcoyes6a-uc.a.run.app/log.php`, instead of production, add the define `OGD_TESTING_ENDPOINT` to your Scripting Define Symbols.
 
 ## Debugging
 
