@@ -251,6 +251,13 @@ namespace OGD {
                             c = '\f';
                             break;
                         }
+                        case 'u': {
+                            if (end - ptr >= 4) {
+                                c = (char) int.Parse(new string(ptr, 0, 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                                ptr += 4;
+                            }
+                            break;
+                        }
                     }
                 }
                 builder.Append(c);
