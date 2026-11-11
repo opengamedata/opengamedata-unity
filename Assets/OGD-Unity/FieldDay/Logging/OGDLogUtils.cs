@@ -13,6 +13,7 @@ namespace OGD {
         static private byte[] EscapePostData_Forbidden = Encoding.ASCII.GetBytes("@&;:<>=?\"'/\\!#%+$,{}|^[]`");
         static private byte[] EscapePostData_HexSequence = Encoding.ASCII.GetBytes("0123456789ABCDEF");
         private const byte EscapePostData_EscapeChar = (byte) '%';
+        private const string EscapeJSON_HexSequence = "0123456789abcdef";
 
         #endregion // Consts
 
@@ -100,7 +101,11 @@ namespace OGD {
                                 break;
                             }
                             default: {
-                                builder.Append(c);
+                                if (c < 0x20) {
+                                    builder.Append("\\u00").Append(EscapeJSON_HexSequence[c >> 4]).Append(EscapeJSON_HexSequence[c & 0xF]);
+                                } else {
+                                    builder.Append(c);
+                                }
                                 break;
                             }
                         }
@@ -153,7 +158,11 @@ namespace OGD {
                         break;
                     }
                     default: {
-                        builder.Append(c);
+                        if (c < 0x20) {
+                            builder.Append("\\u00").Append(EscapeJSON_HexSequence[c >> 4]).Append(EscapeJSON_HexSequence[c & 0xF]);
+                        } else {
+                            builder.Append(c);
+                        }
                         break;
                     }
                 }
@@ -204,7 +213,11 @@ namespace OGD {
                         break;
                     }
                     default: {
-                        builder.Append(c);
+                        if (c < 0x20) {
+                            builder.Append("\\u00").Append(EscapeJSON_HexSequence[c >> 4]).Append(EscapeJSON_HexSequence[c & 0xF]);
+                        } else {
+                            builder.Append(c);
+                        }
                         break;
                     }
                 }
@@ -264,7 +277,13 @@ namespace OGD {
                                 break;
                             }
                             default: {
-                                buffer.Write(c);
+                                if (c < 0x20) {
+                                    buffer.Write("\\u00");
+                                    buffer.Write(EscapeJSON_HexSequence[c >> 4]);
+                                    buffer.Write(EscapeJSON_HexSequence[c & 0xF]);
+                                } else {
+                                    buffer.Write(c);
+                                }
                                 break;
                             }
                         }
@@ -315,7 +334,13 @@ namespace OGD {
                         break;
                     }
                     default: {
-                        buffer.Write(c);
+                        if (c < 0x20) {
+                            buffer.Write("\\u00");
+                            buffer.Write(EscapeJSON_HexSequence[c >> 4]);
+                            buffer.Write(EscapeJSON_HexSequence[c & 0xF]);
+                        } else {
+                            buffer.Write(c);
+                        }
                         break;
                     }
                 }
@@ -365,7 +390,13 @@ namespace OGD {
                             break;
                         }
                         default: {
-                            buffer.Write(c);
+                            if (c < 0x20) {
+                                buffer.Write("\\u00");
+                                buffer.Write(EscapeJSON_HexSequence[c >> 4]);
+                                buffer.Write(EscapeJSON_HexSequence[c & 0xF]);
+                            } else {
+                                buffer.Write(c);
+                            }
                             break;
                         }
                     }
