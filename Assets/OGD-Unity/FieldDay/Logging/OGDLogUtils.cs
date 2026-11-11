@@ -221,6 +221,51 @@ namespace OGD {
         }
 
         /// <summary>
+        /// Undoes EscapeJSON on the given buffer.
+        /// </summary>
+        static internal unsafe StringBuilder UnescapeJSON(this StringBuilder builder, ref FixedCharBuffer buffer) {
+            char* ptr = buffer.Base;
+            char* end = buffer.Base + buffer.Length;
+            char c;
+            while(ptr != end) {
+                c = *ptr++;
+                if (c == '\\' && ptr != end) {
+                    switch((c = *ptr++)) {
+                        case 'n': {
+                            c = '\n';
+                            break;
+                        }
+                        case 'r': {
+                            c = '\r';
+                            break;
+                        }
+                        case 't': {
+                            c = '\t';
+                            break;
+                        }
+                        case 'b': {
+                            c = '\b';
+                            break;
+                        }
+                        case 'f': {
+                            c = '\f';
+                            break;
+                        }
+                        case 'u': {
+                            if (end - ptr >= 4) {
+                                c = (char) int.Parse(new string(ptr, 0, 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                                ptr += 4;
+                            }
+                            break;
+                        }
+                    }
+                }
+                builder.Append(c);
+            }
+            return builder;
+        }
+
+        /// <summary>
         /// Escapes the given string to JSON.
         /// </summary>
         static internal void EscapeJSON(ref FixedCharBuffer buffer, string text) {
