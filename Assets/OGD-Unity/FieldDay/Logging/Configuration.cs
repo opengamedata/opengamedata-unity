@@ -1,5 +1,6 @@
 // #define OGD_TESTING_ENDPOINT
 // #define OGD_STAGING_ENDPOINT
+// #define OGD_ECHO_ENDPOINT
 
 using System;
 
@@ -50,12 +51,20 @@ namespace OGD {
         /// </summary>
         public const string LogEndpoint =
 #if OGD_TESTING_ENDPOINT
-            "https://t-main-t---ogd-api-logger-test-3rlcoyes6a-uc.a.run.app/log.php";
+            "https://t-main-t---ogd-api-logger-test-3rlcoyes6a-uc.a.run.app/" + EndpointFile;
 #elif OGD_STAGING_ENDPOINT
-            "https://ogd-staging.fielddaylab.wisc.edu/opengamedata-logger/master/log.php";
+            "https://ogd-staging.fielddaylab.wisc.edu/opengamedata-logger/master/" + EndpointFile;
 #else
-            "https://ogdlogger.fielddaylab.wisc.edu/logger/log.php";
+            "https://ogdlogger.fielddaylab.wisc.edu/logger/" + EndpointFile;
 #endif // OGD_TESTING_ENDPOINT
+
+        // echo.php answers with how log.php reads each event, without storing anything
+        private const string EndpointFile =
+#if OGD_ECHO_ENDPOINT
+            "echo.php";
+#else
+            "log.php";
+#endif // OGD_ECHO_ENDPOINT
     }
 
     /// <summary>

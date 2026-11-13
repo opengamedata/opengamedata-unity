@@ -257,6 +257,8 @@ You can record your OpenGameData events to a local file for validation by callin
 
 To send your events to the testing endpoint, `https://t-main-t---ogd-api-logger-test-3rlcoyes6a-uc.a.run.app/log.php`, instead of production, add the define `OGD_TESTING_ENDPOINT` to your Scripting Define Symbols.
 
+To check how your events are read without storing them, also add `OGD_ECHO_ENDPOINT`. Events then go to `echo.php` on the same server, which answers with each event as `log.php` would read it, and the answer shows in the console when debug is on. `echo.php` is only on the testing endpoint for now.
+
 ## Debugging
 
 `OGDLog.SetDebug()` can be called to set the logger's debug flag. If set, all requests and responses associated with OpenGameData event logging will be logged to the console.
